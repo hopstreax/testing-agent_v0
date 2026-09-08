@@ -12,13 +12,19 @@ from app.llm.errors import (
     LLMResponseFormatError,
 )
 from app.llm.fallback import FallbackLLMProvider
+from app.llm.gemini import GeminiLLMProvider
+from app.llm.groq import GroqLLMProvider
 from app.llm.mock import MockLLMProvider
+from app.llm.ollama import OllamaLLMProvider
 
 __all__ = [
     "BaseLLMProvider",
     "StepPromptContext",
     "MockLLMProvider",
     "FallbackLLMProvider",
+    "GeminiLLMProvider",
+    "GroqLLMProvider",
+    "OllamaLLMProvider",
     "LLMProviderError",
     "LLMConfigurationError",
     "LLMRateLimitError",
