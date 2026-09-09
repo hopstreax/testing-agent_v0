@@ -1,0 +1,401 @@
+"""Deterministic unit tests for AutonomousTestAgent and orchestration loop."""
+
+import asyncio
+from unittest.mock import AsyncMock, MagicMock
+import pytest
+
+from app.agent.orchestrator import AutonomousTestAgent
+from app.browser.actions import ActionDispatcher
+from app.browser.diagnostics import DiagnosticsCollector
+from app.browser.observer import BrowserObserver
+from app.llm.errors import AllProvidersFailedError
+from app.llm.mock import MockLLMProvider
+from app.models.actions import (
+    ClickAction,
+    FillAction,
+    FinishAction,
+    NavigateAction,
+    ObservationPayload,
+    StepDecision,
+)
+
+
+def make_mock_page(
+    url: str = "https://example.com",
+    title: str = "Example Domain",
+    aria_snapshot: str = "- heading 'Welcome'\n- button 'Submit'",
+) -> MagicMock:
+    """Create a lightweight mock Patchright Page for deterministic testing."""
+    mock_page = MagicMock()
+    mock_page.url = url
+    mock_page.title = AsyncMock(return_value=title)
+    mock_page.aria_snapshot = AsyncMock(return_value=aria_snapshot)
+    mock_page.screenshot = AsyncMock()
+    mock_page.goto = AsyncMock()
+
+    # Mock locator ladder
+    mock_locator = MagicMock()
+    mock_locator.click = AsyncMock()
+    mock_locator.fill = AsyncMock()
+    mock_page.get_by_role = MagicMock(return_value=mock_locator)
+    mock_page.get_by_text = MagicMock(return_value=mock_locator)
+    mock_page.get_by_placeholder = MagicMock(return_value=mock_locator)
+    mock_page.get_by_label = MagicMock(return_value=mock_locator)
+    mock_page.locator = MagicMock(return_value=mock_locator)
+    return mock_page
+
+
+# =========================================================================
+# ActionDispatcher NavigateAction Tests
+# =========================================================================
+
+async def test_dispatcher_executes_navigate_action() -> None:
+    dispatcher = ActionDispatcher()
+    mock_page = make_mock_page()
+    action = NavigateAction(url="https://example.com/dashboard")
+
+    result = await dispatcher.execute(mock_page, action)
+
+    assert result.success is True
+    assert result.action_type == "navigate"
+    assert result.resolved_by == "page.goto"
+    assert result.duration_ms >= 0
+    assert result.error_message is None
+    mock_page.goto.assert_awaited_once_with(
+        "https://example.com/dashboard",
+        timeout=7000,
+        wait_until="domcontentloaded",
+    )
+
+
+async def test_dispatcher_executes_navigate_action_failure() -> None:
+    dispatcher = ActionDispatcher()
+    mock_page = make_mock_page()
+    mock_page.goto = AsyncMock(side_effect=RuntimeError("net::ERR_CONNECTION_REFUSED"))
+    action = NavigateAction(url="https://invalid.example.com")
+
+    result = await dispatcher.execute(mock_page, action)
+
+    assert result.success is False
+    assert result.action_type == "navigate"
+    assert "ERR_CONNECTION_REFUSED" in (result.error_message or "")
+
+
+# =========================================================================
+# AutonomousTestAgent Core Loop Tests
+# =========================================================================
+
+async def test_agent_happy_path_success() -> None:
+    mock_page = make_mock_page()
+
+    provider = MockLLMProvider(script=[
+        StepDecision(
+            observation_summary="On home page.",
+            decision="Navigate to login page.",
+            action=NavigateAction(url="https://example.com/login"),
+        ),
+        StepDecision(
+            observation_summary="On login page.",
+            decision="Fill username field.",
+            action=FillAction(role="textbox", name="Username", value="alice"),
+        ),
+        StepDecision(
+            observation_summary="Username filled.",
+            decision="Click submit button.",
+            action=ClickAction(role="button", name="Submit"),
+        ),
+        StepDecision(
+            observation_summary="Dashboard loaded.",
+            decision="Goal satisfied.",
+            action=FinishAction(success=True, message="Login flow verified successfully"),
+        ),
+    ])
+
+    agent = AutonomousTestAgent(llm_provider=provider, max_steps=10)
+    result = await agent.run(mock_page, goal="Test user login")
+
+    assert result.success is True
+    assert result.termination_reason == "goal_achieved"
+    assert result.message == "Login flow verified successfully"
+    assert result.steps_executed == 4
+    assert len(result.history) == 4
+
+    # Verify chronological step records
+    assert result.history[0].step_number == 1
+    assert result.history[0].decision.action.action_type == "navigate"
+    assert result.history[1].step_number == 2
+    assert result.history[1].decision.action.action_type == "fill"
+    assert result.history[2].step_number == 3
+    assert result.history[2].decision.action.action_type == "click"
+    assert result.history[3].step_number == 4
+    assert result.history[3].decision.action.action_type == "finish"
+    assert result.history[3].result.action_type == "finish"
+    assert result.history[3].result.success is True
+
+
+async def test_agent_terminal_failure() -> None:
+    mock_page = make_mock_page()
+
+    provider = MockLLMProvider(script=[
+        StepDecision(
+            observation_summary="Error banner visible.",
+            decision="Account locked.",
+            action=FinishAction(success=False, message="User is blocked from logging in"),
+        )
+    ])
+
+    agent = AutonomousTestAgent(llm_provider=provider)
+    result = await agent.run(mock_page, goal="Test user login")
+
+    assert result.success is False
+    assert result.termination_reason == "goal_failed"
+    assert result.message == "User is blocked from logging in"
+    assert result.steps_executed == 1
+    assert len(result.history) == 1
+
+
+async def test_agent_max_steps_exceeded() -> None:
+    mock_page = make_mock_page()
+
+    # Endless clicks
+    endless_decisions = [
+        StepDecision(
+            observation_summary=f"Step {i}",
+            decision="Click next",
+            action=ClickAction(role="button", name=f"Btn {i}"),
+        )
+        for i in range(10)
+    ]
+    provider = MockLLMProvider(script=endless_decisions)
+
+    # Hard cap at 3 steps
+    agent = AutonomousTestAgent(llm_provider=provider, max_steps=3)
+    result = await agent.run(mock_page, goal="Test endless loop")
+
+    assert result.success is False
+    assert result.termination_reason == "max_steps_exceeded"
+    assert result.steps_executed == 3
+    assert len(result.history) == 3
+    assert "maximum limit of 3 steps" in result.message
+
+
+async def test_agent_action_loop_stagnation() -> None:
+    mock_page = make_mock_page()
+
+    # Repeat exact same ClickAction on exact same state
+    same_click = ClickAction(role="button", name="Retry")
+    provider = MockLLMProvider(script=[
+        StepDecision(
+            observation_summary="Error displayed.",
+            decision="Click retry button.",
+            action=same_click,
+        ),
+        StepDecision(
+            observation_summary="Error still displayed.",
+            decision="Click retry button again.",
+            action=same_click,
+        ),
+    ])
+
+    agent = AutonomousTestAgent(llm_provider=provider, max_steps=10)
+    result = await agent.run(mock_page, goal="Test retry behavior")
+
+    assert result.success is False
+    assert result.termination_reason == "stagnation_detected"
+    assert "identical action 'click' repeated consecutively" in result.message
+    # Step 1 ran; before step 2 dispatched, loop stagnation halted execution
+    assert result.steps_executed == 1
+
+
+async def test_agent_prolonged_state_stagnation_detected() -> None:
+    mock_page = make_mock_page()
+
+    # 3 consecutive actions on the exact same target where state remains unchanged
+    provider = MockLLMProvider(script=[
+        StepDecision(
+            observation_summary="Input visible.",
+            decision="Fill search with query 1.",
+            action=FillAction(role="textbox", name="Search", value="test1"),
+        ),
+        StepDecision(
+            observation_summary="Input visible.",
+            decision="Fill search with query 2.",
+            action=FillAction(role="textbox", name="Search", value="test2"),
+        ),
+        StepDecision(
+            observation_summary="Input visible.",
+            decision="Fill search with query 3.",
+            action=FillAction(role="textbox", name="Search", value="test3"),
+        ),
+    ])
+
+    agent = AutonomousTestAgent(llm_provider=provider, max_steps=10)
+    result = await agent.run(mock_page, goal="Test search input")
+
+    assert result.success is False
+    assert result.termination_reason == "stagnation_detected"
+    assert "consecutive actions with non-progress" in result.message
+    assert result.steps_executed == 3
+
+
+async def test_agent_sequential_form_filling_does_not_falsely_stagnate() -> None:
+    # ARIA snapshot stays unchanged, but actions are different successful fills
+    mock_page = make_mock_page(aria_snapshot="- textbox 'First Name'\n- textbox 'Last Name'\n- textbox 'Email'")
+
+    provider = MockLLMProvider(script=[
+        StepDecision(
+            observation_summary="Form visible.",
+            decision="Fill first name.",
+            action=FillAction(role="textbox", name="First Name", value="Alice"),
+        ),
+        StepDecision(
+            observation_summary="Form visible.",
+            decision="Fill last name.",
+            action=FillAction(role="textbox", name="Last Name", value="Smith"),
+        ),
+        StepDecision(
+            observation_summary="Form visible.",
+            decision="Fill email.",
+            action=FillAction(role="textbox", name="Email", value="alice@example.com"),
+        ),
+        StepDecision(
+            observation_summary="Form completed.",
+            decision="Done filling.",
+            action=FinishAction(success=True, message="All fields filled"),
+        ),
+    ])
+
+    agent = AutonomousTestAgent(llm_provider=provider, max_steps=10)
+    result = await agent.run(mock_page, goal="Fill registration form")
+
+    # Must NOT trigger false stagnation
+    assert result.success is True
+    assert result.termination_reason == "goal_achieved"
+    assert result.steps_executed == 4
+    assert result.message == "All fields filled"
+
+
+async def test_agent_action_failure_and_recovery() -> None:
+    mock_page = make_mock_page()
+
+    # Custom dispatcher that fails on first action and succeeds on second
+    dispatcher = ActionDispatcher()
+    original_execute = dispatcher.execute
+    call_count = 0
+
+    async def failing_execute(page, action, timeout_ms=7000):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            from app.models.actions import ActionResult
+            return ActionResult(
+                success=False,
+                action_type=action.action_type,
+                duration_ms=50,
+                error_message="Locator not found: role=button, name=MissingBtn",
+            )
+        return await original_execute(page, action, timeout_ms)
+
+    dispatcher.execute = failing_execute
+
+    provider = MockLLMProvider(script=[
+        StepDecision(
+            observation_summary="Trying button.",
+            decision="Click missing button.",
+            action=ClickAction(role="button", name="MissingBtn"),
+        ),
+        StepDecision(
+            observation_summary="Observed button failure in history.",
+            decision="Finish test acknowledging recovery.",
+            action=FinishAction(success=True, message="Recovered from failure"),
+        ),
+    ])
+
+    agent = AutonomousTestAgent(llm_provider=provider, dispatcher=dispatcher)
+    result = await agent.run(mock_page, goal="Test error recovery")
+
+    assert result.success is True
+    assert result.steps_executed == 2
+    assert result.history[0].result.success is False
+    assert "Locator not found" in (result.history[0].result.error_message or "")
+    assert result.history[1].result.success is True
+    assert result.termination_reason == "goal_achieved"
+
+
+async def test_agent_all_providers_failed() -> None:
+    mock_page = make_mock_page()
+    provider = MockLLMProvider()
+    provider.generate_step = AsyncMock(
+        side_effect=AllProvidersFailedError([("gemini", RuntimeError("Rate limit 429"))])
+    )
+
+    agent = AutonomousTestAgent(llm_provider=provider)
+    result = await agent.run(mock_page, goal="Test unrecoverable failure")
+
+    assert result.success is False
+    assert result.termination_reason == "unrecoverable_error"
+    assert "All LLM providers failed" in result.message
+
+
+async def test_agent_cancellation_propagates() -> None:
+    mock_page = make_mock_page()
+    provider = MockLLMProvider()
+    provider.generate_step = AsyncMock(side_effect=asyncio.CancelledError())
+
+    agent = AutonomousTestAgent(llm_provider=provider)
+    with pytest.raises(asyncio.CancelledError):
+        await agent.run(mock_page, goal="Test cancel")
+
+
+async def test_agent_programming_error_propagates() -> None:
+    mock_page = make_mock_page()
+    provider = MockLLMProvider()
+    provider.generate_step = AsyncMock(side_effect=TypeError("Unexpected type bug"))
+
+    agent = AutonomousTestAgent(llm_provider=provider)
+    with pytest.raises(TypeError, match="Unexpected type bug"):
+        await agent.run(mock_page, goal="Test bug")
+
+
+async def test_agent_initial_url_navigation() -> None:
+    mock_page = make_mock_page()
+    provider = MockLLMProvider(script=[
+        StepDecision(
+            observation_summary="Page loaded.",
+            decision="Done.",
+            action=FinishAction(success=True, message="Initial page verified"),
+        )
+    ])
+
+    agent = AutonomousTestAgent(llm_provider=provider)
+    result = await agent.run(mock_page, goal="Test initial url", initial_url="https://example.com/app")
+
+    mock_page.goto.assert_awaited_once_with("https://example.com/app", wait_until="domcontentloaded")
+    assert result.success is True
+    # Initial url is setup, so step count starts at 1 for the LLM turn
+    assert result.steps_executed == 1
+
+
+async def test_agent_diagnostics_propagation() -> None:
+    mock_page = make_mock_page()
+    diagnostics = DiagnosticsCollector()
+    diagnostics.attach(mock_page)
+
+    # Simulate console error
+    error_msg = MagicMock(type="error", text="TypeError: undefined is not a function", location=None)
+    diagnostics._handle_console(error_msg)
+
+    provider = MockLLMProvider(script=[
+        StepDecision(
+            observation_summary="Error in console.",
+            decision="Finish test.",
+            action=FinishAction(success=True, message="Diagnostics checked"),
+        )
+    ])
+
+    agent = AutonomousTestAgent(llm_provider=provider, diagnostics=diagnostics)
+    result = await agent.run(mock_page, goal="Test diagnostics")
+
+    assert result.diagnostics is not None
+    assert result.diagnostics["console_error_count"] == 1
+    assert result.diagnostics["has_errors"] is True

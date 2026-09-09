@@ -2,7 +2,13 @@
 
 import time
 from typing import Any, Tuple
-from app.models.actions import ActionResult, AgentAction, ClickAction, FillAction
+from app.models.actions import (
+    ActionResult,
+    AgentAction,
+    ClickAction,
+    FillAction,
+    NavigateAction,
+)
 
 
 class ActionDispatcher:
@@ -19,8 +25,8 @@ class ActionDispatcher:
         4. CSS / test-id Selector
         """
         # 1. ARIA Role & Name
-        if action.role:
-            if action.name:
+        if getattr(action, "role", None):
+            if getattr(action, "name", None):
                 return (
                     page.get_by_role(action.role, name=action.name, exact=False),
                     f"role={action.role}, name={action.name}",
@@ -28,17 +34,17 @@ class ActionDispatcher:
             return (page.get_by_role(action.role), f"role={action.role}")
 
         # 2. Text Content
-        if action.text:
+        if getattr(action, "text", None):
             return (page.get_by_text(action.text, exact=False), f"text='{action.text}'")
 
         # 3. Placeholder / Label
-        if action.placeholder:
+        if getattr(action, "placeholder", None):
             return (page.get_by_placeholder(action.placeholder), f"placeholder='{action.placeholder}'")
-        if action.label:
+        if getattr(action, "label", None):
             return (page.get_by_label(action.label), f"label='{action.label}'")
 
         # 4. CSS / Selector
-        if action.selector:
+        if getattr(action, "selector", None):
             return (page.locator(action.selector), f"selector='{action.selector}'")
 
         raise ValueError("Action does not contain any valid locator criteria (role, text, placeholder, label, selector).")
@@ -54,18 +60,22 @@ class ActionDispatcher:
         timeout = timeout_ms or self.default_timeout_ms
 
         try:
-            locator, resolved_by = self.resolve_locator(page, action)
-
-            if isinstance(action, FillAction):
-                await locator.fill(action.value, timeout=timeout)
-            elif isinstance(action, ClickAction):
-                await locator.click(
-                    button=action.button,
-                    click_count=action.click_count,
-                    timeout=timeout,
-                )
+            if isinstance(action, NavigateAction):
+                await page.goto(action.url, timeout=timeout, wait_until="domcontentloaded")
+                resolved_by = "page.goto"
             else:
-                raise NotImplementedError(f"Action type '{action.action_type}' is not supported in Milestone 1.")
+                locator, resolved_by = self.resolve_locator(page, action)
+
+                if isinstance(action, FillAction):
+                    await locator.fill(action.value, timeout=timeout)
+                elif isinstance(action, ClickAction):
+                    await locator.click(
+                        button=action.button,
+                        click_count=action.click_count,
+                        timeout=timeout,
+                    )
+                else:
+                    raise NotImplementedError(f"Action type '{action.action_type}' is not supported by ActionDispatcher.")
 
             duration_ms = int((time.perf_counter() - start_time) * 1000)
             return ActionResult(
