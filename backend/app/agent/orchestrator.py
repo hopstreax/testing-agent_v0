@@ -18,6 +18,8 @@ from app.models.actions import (
     FinishAction,
     NavigateAction,
     ObservationPayload,
+    PressKeyAction,
+    SelectAction,
     StepRecord,
 )
 from app.models.agent import AgentRunResult
@@ -71,6 +73,28 @@ class AutonomousTestAgent:
                 action.selector,
                 action.expected_value,
             )
+        if isinstance(action, PressKeyAction):
+            return (
+                "press_key",
+                action.key,
+                action.role,
+                action.name,
+                action.text,
+                action.placeholder,
+                action.label,
+                action.selector,
+            )
+        if isinstance(action, SelectAction):
+            return (
+                "select",
+                action.role,
+                action.name,
+                action.text,
+                action.placeholder,
+                action.selector,
+                action.value,
+                action.label,
+            )
         if isinstance(action, FinishAction):
             return ("finish", action.success)
         return (action.action_type,)
@@ -92,6 +116,26 @@ class AutonomousTestAgent:
                 action.text,
                 action.placeholder,
                 action.label,
+                action.selector,
+            )
+        if isinstance(action, PressKeyAction):
+            return (
+                "press_key",
+                action.key,
+                action.role,
+                action.name,
+                action.text,
+                action.placeholder,
+                action.label,
+                action.selector,
+            )
+        if isinstance(action, SelectAction):
+            return (
+                "select",
+                action.role,
+                action.name,
+                action.text,
+                action.placeholder,
                 action.selector,
             )
         if isinstance(action, FinishAction):

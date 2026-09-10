@@ -97,6 +97,61 @@ class AssertAction(BaseAction):
         return self
 
 
+SupportedKey = Literal[
+    "Enter",
+    "Escape",
+    "Tab",
+    "ArrowDown",
+    "ArrowUp",
+    "Backspace",
+]
+
+
+class PressKeyAction(BaseAction):
+    """Action to press a specific keyboard key, optionally targeting a focused element."""
+
+    action_type: Literal["press_key"] = "press_key"
+    key: SupportedKey = Field(
+        ...,
+        description="Keyboard key to press. Supported: 'Enter', 'Escape', 'Tab', 'ArrowDown', 'ArrowUp', 'Backspace'.",
+    )
+
+
+class SelectAction(BaseAction):
+    """Action to select an option in a native HTML <select> element."""
+
+    action_type: Literal["select"] = "select"
+    value: Optional[str] = Field(None, description="Option value attribute to select")
+    label: Optional[str] = Field(None, description="Option visible text/label to select")
+
+    @model_validator(mode="after")
+    def validate_select_action(self) -> "SelectAction":
+        # 1. Require a locator criterion
+        has_locator = any([
+            self.role,
+            self.name,
+            self.text,
+            self.placeholder,
+            self.selector,
+        ])
+        if not has_locator:
+            raise ValueError(
+                "SelectAction requires at least one locator criterion (role, name, text, placeholder, selector)."
+            )
+
+        # 2. Require exactly one of value or label
+        has_value = self.value is not None and bool(self.value.strip())
+        has_label = self.label is not None and bool(self.label.strip())
+
+        if not has_value and not has_label:
+            raise ValueError("SelectAction requires either 'value' or 'label' to select an option.")
+
+        if has_value and has_label:
+            raise ValueError("SelectAction cannot specify both 'value' and 'label'. Provide only one option criterion.")
+
+        return self
+
+
 class FinishAction(BaseModel):
     """Action signaling test completion or terminal failure."""
 
@@ -115,7 +170,15 @@ class FinishAction(BaseModel):
 
 # Discriminated union of all supported actions
 AgentAction = Annotated[
-    Union[ClickAction, FillAction, NavigateAction, AssertAction, FinishAction],
+    Union[
+        ClickAction,
+        FillAction,
+        NavigateAction,
+        AssertAction,
+        PressKeyAction,
+        SelectAction,
+        FinishAction,
+    ],
     Field(discriminator="action_type"),
 ]
 

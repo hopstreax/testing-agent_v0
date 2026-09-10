@@ -11,6 +11,8 @@ from app.models.actions import (
     FinishAction,
     NavigateAction,
     ObservationPayload,
+    PressKeyAction,
+    SelectAction,
     StepDecision,
     StepRecord,
 )
@@ -331,3 +333,95 @@ def test_step_record_construction_and_validation():
             decision=decision,
             result=result,
         )
+
+
+# =============================================================================
+# Milestone 3 — Slice 2: PressKeyAction and SelectAction Schema Tests
+# =============================================================================
+
+def test_valid_press_key_action_with_locator():
+    action = PressKeyAction(key="Enter", role="textbox", name="Search")
+    assert action.action_type == "press_key"
+    assert action.key == "Enter"
+    assert action.role == "textbox"
+    assert action.name == "Search"
+
+
+def test_valid_press_key_action_without_locator():
+    action = PressKeyAction(key="Escape")
+    assert action.action_type == "press_key"
+    assert action.key == "Escape"
+    assert action.role is None
+    assert action.selector is None
+
+
+def test_invalid_unsupported_key_rejected():
+    with pytest.raises(ValidationError):
+        PressKeyAction(key="F1")
+
+    with pytest.raises(ValidationError):
+        PressKeyAction(key="Control+C")
+
+    with pytest.raises(ValidationError):
+        PressKeyAction(key="Space")
+
+
+def test_valid_select_action_by_value():
+    action = SelectAction(role="combobox", name="Country", value="US")
+    assert action.action_type == "select"
+    assert action.role == "combobox"
+    assert action.name == "Country"
+    assert action.value == "US"
+    assert action.label is None
+
+
+def test_valid_select_action_by_label():
+    action = SelectAction(selector="#country-select", label="United States")
+    assert action.action_type == "select"
+    assert action.selector == "#country-select"
+    assert action.label == "United States"
+    assert action.value is None
+
+
+def test_select_action_missing_locator_rejected():
+    with pytest.raises(ValidationError) as exc:
+        SelectAction(value="US")
+    assert "requires at least one locator criterion" in str(exc.value)
+
+
+def test_select_action_missing_option_criterion_rejected():
+    with pytest.raises(ValidationError) as exc:
+        SelectAction(selector="#dropdown")
+    assert "requires either 'value' or 'label'" in str(exc.value)
+
+
+def test_select_action_ambiguous_value_and_label_rejected():
+    with pytest.raises(ValidationError) as exc:
+        SelectAction(selector="#dropdown", value="US", label="United States")
+    assert "cannot specify both 'value' and 'label'" in str(exc.value)
+
+
+def test_step_decision_deserialization_press_key_and_select():
+    # PressKeyAction roundtrip
+    dec_press = StepDecision(
+        observation_summary="Search input focused.",
+        decision="Press Enter to submit search.",
+        action=PressKeyAction(key="Enter", role="textbox", name="Search"),
+    )
+    json_press = dec_press.model_dump_json()
+    reconstituted_press = StepDecision.model_validate_json(json_press)
+    assert isinstance(reconstituted_press.action, PressKeyAction)
+    assert reconstituted_press.action.key == "Enter"
+    assert reconstituted_press == dec_press
+
+    # SelectAction roundtrip
+    dec_select = StepDecision(
+        observation_summary="Country dropdown visible.",
+        decision="Select US country option.",
+        action=SelectAction(role="combobox", name="Country", value="US"),
+    )
+    json_select = dec_select.model_dump_json()
+    reconstituted_select = StepDecision.model_validate_json(json_select)
+    assert isinstance(reconstituted_select.action, SelectAction)
+    assert reconstituted_select.action.value == "US"
+    assert reconstituted_select == dec_select

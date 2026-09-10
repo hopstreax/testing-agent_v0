@@ -18,6 +18,8 @@ from app.models.actions import (
     FinishAction,
     NavigateAction,
     ObservationPayload,
+    PressKeyAction,
+    SelectAction,
     StepDecision,
 )
 
@@ -35,10 +37,15 @@ def make_mock_page(
     mock_page.screenshot = AsyncMock()
     mock_page.goto = AsyncMock()
 
+    mock_page.keyboard = MagicMock()
+    mock_page.keyboard.press = AsyncMock()
+
     # Mock locator ladder
     mock_locator = MagicMock()
     mock_locator.click = AsyncMock()
     mock_locator.fill = AsyncMock()
+    mock_locator.press = AsyncMock()
+    mock_locator.select_option = AsyncMock()
     mock_page.get_by_role = MagicMock(return_value=mock_locator)
     mock_page.get_by_text = MagicMock(return_value=mock_locator)
     mock_page.get_by_placeholder = MagicMock(return_value=mock_locator)
@@ -570,3 +577,105 @@ async def test_agent_diagnostics_propagation() -> None:
     assert result.diagnostics["console_error_count"] == 1
     assert result.diagnostics["has_errors"] is True
     assert result.success is True
+
+
+# =============================================================================
+# Milestone 3 — Slice 2: PressKeyAction and SelectAction Agent Loop Tests
+# =============================================================================
+
+async def test_agent_executes_press_key_and_completes() -> None:
+    mock_page = make_mock_page()
+
+    provider = MockLLMProvider(script=[
+        StepDecision(
+            observation_summary="Search input focused.",
+            decision="Press Enter to submit query.",
+            action=PressKeyAction(key="Enter", role="textbox", name="Search"),
+        ),
+        StepDecision(
+            observation_summary="Search results displayed.",
+            decision="Verify search heading is visible.",
+            action=AssertAction(assertion_type="visible", role="heading", name="Results"),
+        ),
+        StepDecision(
+            observation_summary="Search verified.",
+            decision="Complete goal.",
+            action=FinishAction(success=True, message="Search verified successfully"),
+        ),
+    ])
+
+    agent = AutonomousTestAgent(llm_provider=provider, max_steps=5)
+    result = await agent.run(mock_page, goal="Test search submission")
+
+    assert result.success is True
+    assert result.termination_reason == "goal_achieved"
+    assert result.steps_executed == 3
+    assert result.history[0].decision.action.action_type == "press_key"
+    assert result.history[0].result.success is True
+    assert result.history[1].decision.action.action_type == "assert"
+    assert result.history[1].result.success is True
+    assert result.history[2].decision.action.action_type == "finish"
+
+
+async def test_agent_executes_select_action_and_completes() -> None:
+    mock_page = make_mock_page()
+
+    provider = MockLLMProvider(script=[
+        StepDecision(
+            observation_summary="Filter dropdown visible.",
+            decision="Select Category option.",
+            action=SelectAction(role="combobox", name="Category", value="books"),
+        ),
+        StepDecision(
+            observation_summary="Filter applied.",
+            decision="Verify Books heading is visible.",
+            action=AssertAction(assertion_type="visible", role="heading", name="Books"),
+        ),
+        StepDecision(
+            observation_summary="Filter verified.",
+            decision="Complete goal.",
+            action=FinishAction(success=True, message="Category filtered successfully"),
+        ),
+    ])
+
+    agent = AutonomousTestAgent(llm_provider=provider, max_steps=5)
+    result = await agent.run(mock_page, goal="Test category filter")
+
+    assert result.success is True
+    assert result.termination_reason == "goal_achieved"
+    assert result.steps_executed == 3
+    assert result.history[0].decision.action.action_type == "select"
+    assert result.history[0].result.success is True
+    assert result.history[1].decision.action.action_type == "assert"
+    assert result.history[2].decision.action.action_type == "finish"
+
+
+async def test_agent_stagnation_distinguishes_different_keys_and_options() -> None:
+    agent = AutonomousTestAgent(llm_provider=MagicMock())
+
+    # Key differences in action signature
+    sig_enter = agent.compute_action_signature(PressKeyAction(key="Enter", role="textbox", name="Input"))
+    sig_escape = agent.compute_action_signature(PressKeyAction(key="Escape", role="textbox", name="Input"))
+    sig_backspace = agent.compute_action_signature(PressKeyAction(key="Backspace", role="textbox", name="Input"))
+    assert sig_enter != sig_escape
+    assert sig_enter != sig_backspace
+
+    # Option differences in action signature
+    sig_us = agent.compute_action_signature(SelectAction(role="combobox", name="Country", value="US"))
+    sig_ca = agent.compute_action_signature(SelectAction(role="combobox", name="Country", value="CA"))
+    sig_label = agent.compute_action_signature(SelectAction(role="combobox", name="Country", label="Canada"))
+    assert sig_us != sig_ca
+    assert sig_ca != sig_label
+
+    # Target differences in target computation
+    target_enter = agent.compute_action_target(PressKeyAction(key="Enter", role="textbox", name="Input"))
+    target_escape = agent.compute_action_target(PressKeyAction(key="Escape", role="textbox", name="Input"))
+    assert target_enter != target_escape
+
+    target_country = agent.compute_action_target(SelectAction(role="combobox", name="Country", value="US"))
+    target_state = agent.compute_action_target(SelectAction(role="combobox", name="State", value="CA"))
+    target_country_alt = agent.compute_action_target(SelectAction(role="combobox", name="Country", value="CA"))
+    # Different elements have different targets
+    assert target_country != target_state
+    # Same element with different values has the same target identity (matching FillAction semantics)
+    assert target_country == target_country_alt

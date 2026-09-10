@@ -13,6 +13,8 @@ from app.models.actions import (
     ClickAction,
     FillAction,
     NavigateAction,
+    PressKeyAction,
+    SelectAction,
 )
 
 
@@ -63,7 +65,7 @@ class ActionDispatcher:
         # 3. Placeholder / Label
         if getattr(action, "placeholder", None):
             return (page.get_by_placeholder(action.placeholder), f"placeholder='{action.placeholder}'")
-        if getattr(action, "label", None):
+        if not isinstance(action, SelectAction) and getattr(action, "label", None):
             return (page.get_by_label(action.label), f"label='{action.label}'")
 
         # 4. CSS / Selector
@@ -119,6 +121,29 @@ class ActionDispatcher:
                         await expect_target(locator).to_have_value(action.expected_value or "", timeout=timeout)
                     else:
                         raise NotImplementedError(f"Assertion type '{action.assertion_type}' is not supported.")
+            elif isinstance(action, PressKeyAction):
+                timeout = timeout_ms or self.default_timeout_ms
+                has_locator = any([
+                    action.role,
+                    action.name,
+                    action.text,
+                    action.placeholder,
+                    action.label,
+                    action.selector,
+                ])
+                if has_locator:
+                    locator, resolved_by = self.resolve_locator(page, action)
+                    await locator.press(action.key, timeout=timeout)
+                else:
+                    await page.keyboard.press(action.key)
+                    resolved_by = "page.keyboard"
+            elif isinstance(action, SelectAction):
+                timeout = timeout_ms or self.default_timeout_ms
+                locator, resolved_by = self.resolve_locator(page, action)
+                if action.value is not None:
+                    await locator.select_option(value=action.value, timeout=timeout)
+                elif action.label is not None:
+                    await locator.select_option(label=action.label, timeout=timeout)
             else:
                 timeout = timeout_ms or self.default_timeout_ms
                 locator, resolved_by = self.resolve_locator(page, action)

@@ -3,7 +3,13 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock
 from app.browser.actions import ActionDispatcher
-from app.models.actions import AssertAction, ClickAction, FillAction
+from app.models.actions import (
+    AssertAction,
+    ClickAction,
+    FillAction,
+    PressKeyAction,
+    SelectAction,
+)
 
 
 def make_mock_expect():
@@ -225,3 +231,94 @@ async def test_page_level_assertions_skip_locator_resolution(dispatcher, mock_pa
     await dispatcher.execute(mock_page, action_title)
     mock_page.get_by_role.assert_not_called()
     mock_page.locator.assert_not_called()
+
+
+# =============================================================================
+# Milestone 3 — Slice 2: PressKeyAction and SelectAction Dispatcher Tests
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_execute_press_key_with_locator(dispatcher, mock_page):
+    mock_locator = MagicMock()
+    mock_locator.press = AsyncMock()
+    mock_page.get_by_role = MagicMock(return_value=mock_locator)
+
+    action = PressKeyAction(key="Enter", role="textbox", name="Search")
+    res = await dispatcher.execute(mock_page, action)
+
+    assert res.success is True
+    assert res.action_type == "press_key"
+    assert "role=textbox, name=Search" in res.resolved_by
+    mock_locator.press.assert_awaited_once_with("Enter", timeout=5000)
+
+
+@pytest.mark.asyncio
+async def test_execute_press_key_without_locator(dispatcher, mock_page):
+    mock_page.keyboard = MagicMock()
+    mock_page.keyboard.press = AsyncMock()
+
+    action = PressKeyAction(key="Escape")
+    res = await dispatcher.execute(mock_page, action)
+
+    assert res.success is True
+    assert res.action_type == "press_key"
+    assert res.resolved_by == "page.keyboard"
+    mock_page.keyboard.press.assert_awaited_once_with("Escape")
+
+
+@pytest.mark.asyncio
+async def test_execute_select_option_by_value(dispatcher, mock_page):
+    mock_locator = MagicMock()
+    mock_locator.select_option = AsyncMock()
+    mock_page.get_by_role = MagicMock(return_value=mock_locator)
+
+    action = SelectAction(role="combobox", name="Country", value="US")
+    res = await dispatcher.execute(mock_page, action)
+
+    assert res.success is True
+    assert res.action_type == "select"
+    assert "role=combobox, name=Country" in res.resolved_by
+    mock_locator.select_option.assert_awaited_once_with(value="US", timeout=5000)
+
+
+@pytest.mark.asyncio
+async def test_execute_select_option_by_label(dispatcher, mock_page):
+    mock_locator = MagicMock()
+    mock_locator.select_option = AsyncMock()
+    mock_page.locator = MagicMock(return_value=mock_locator)
+
+    action = SelectAction(selector="#country-select", label="United States")
+    res = await dispatcher.execute(mock_page, action)
+
+    assert res.success is True
+    assert res.action_type == "select"
+    assert "selector='#country-select'" in res.resolved_by
+    mock_locator.select_option.assert_awaited_once_with(label="United States", timeout=5000)
+
+
+@pytest.mark.asyncio
+async def test_execute_press_key_failure_captured(dispatcher, mock_page):
+    mock_locator = MagicMock()
+    mock_locator.press = AsyncMock(side_effect=RuntimeError("Element detached from DOM"))
+    mock_page.get_by_role = MagicMock(return_value=mock_locator)
+
+    action = PressKeyAction(key="Tab", role="textbox", name="Search")
+    res = await dispatcher.execute(mock_page, action)
+
+    assert res.success is False
+    assert res.action_type == "press_key"
+    assert "Element detached from DOM" in res.error_message
+
+
+@pytest.mark.asyncio
+async def test_execute_select_option_failure_captured(dispatcher, mock_page):
+    mock_locator = MagicMock()
+    mock_locator.select_option = AsyncMock(side_effect=ValueError("Option 'NonExistent' not found"))
+    mock_page.locator = MagicMock(return_value=mock_locator)
+
+    action = SelectAction(selector="#dropdown", value="NonExistent")
+    res = await dispatcher.execute(mock_page, action)
+
+    assert res.success is False
+    assert res.action_type == "select"
+    assert "Option 'NonExistent' not found" in res.error_message
