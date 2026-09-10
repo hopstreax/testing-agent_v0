@@ -12,6 +12,7 @@ from app.llm.context import StepPromptContext
 from app.models.actions import (
     ActionResult,
     AgentAction,
+    AssertAction,
     ClickAction,
     FillAction,
     FinishAction,
@@ -58,6 +59,18 @@ class AutonomousTestAgent:
             )
         if isinstance(action, NavigateAction):
             return ("navigate", action.url)
+        if isinstance(action, AssertAction):
+            return (
+                "assert",
+                action.assertion_type,
+                action.role,
+                action.name,
+                action.text,
+                action.placeholder,
+                action.label,
+                action.selector,
+                action.expected_value,
+            )
         if isinstance(action, FinishAction):
             return ("finish", action.success)
         return (action.action_type,)
@@ -70,6 +83,17 @@ class AutonomousTestAgent:
             return ("fill", action.role, action.name, action.placeholder, action.selector)
         if isinstance(action, NavigateAction):
             return ("navigate", action.url)
+        if isinstance(action, AssertAction):
+            return (
+                "assert",
+                action.assertion_type,
+                action.role,
+                action.name,
+                action.text,
+                action.placeholder,
+                action.label,
+                action.selector,
+            )
         if isinstance(action, FinishAction):
             return ("finish",)
         return (action.action_type,)
@@ -167,32 +191,88 @@ class AutonomousTestAgent:
 
             action = decision.action
 
-            # Terminal FinishAction handling
+            # Terminal FinishAction handling with anti-hallucination verification requirement
             if isinstance(action, FinishAction):
-                finish_res = ActionResult(
-                    success=action.success,
-                    action_type="finish",
-                    duration_ms=0,
-                    resolved_by="agent.finish",
-                )
-                record = StepRecord(
-                    step_number=step_number,
-                    observation=obs,
-                    decision=decision,
-                    result=finish_res,
-                )
-                history.append(record)
-                steps_executed += 1
-                elapsed_ms = int((time.perf_counter() - start_time) * 1000)
-                return AgentRunResult(
-                    success=action.success,
-                    termination_reason="goal_achieved" if action.success else "goal_failed",
-                    message=action.message,
-                    steps_executed=steps_executed,
-                    history=history,
-                    duration_ms=elapsed_ms,
-                    diagnostics=diag_summary,
-                )
+                if not action.success:
+                    # Explicit goal failure is always permitted to terminate immediately
+                    finish_res = ActionResult(
+                        success=False,
+                        action_type="finish",
+                        duration_ms=0,
+                        resolved_by="agent.finish",
+                    )
+                    record = StepRecord(
+                        step_number=step_number,
+                        observation=obs,
+                        decision=decision,
+                        result=finish_res,
+                    )
+                    history.append(record)
+                    steps_executed += 1
+                    elapsed_ms = int((time.perf_counter() - start_time) * 1000)
+                    return AgentRunResult(
+                        success=False,
+                        termination_reason="goal_failed",
+                        message=action.message,
+                        steps_executed=steps_executed,
+                        history=history,
+                        duration_ms=elapsed_ms,
+                        diagnostics=diag_summary,
+                    )
+                else:
+                    # Success declaration requires at least one successful AssertAction in the run
+                    has_verified_assertion = any(
+                        rec.decision.action.action_type == "assert" and rec.result.success
+                        for rec in history
+                    )
+                    if has_verified_assertion:
+                        finish_res = ActionResult(
+                            success=True,
+                            action_type="finish",
+                            duration_ms=0,
+                            resolved_by="agent.finish",
+                        )
+                        record = StepRecord(
+                            step_number=step_number,
+                            observation=obs,
+                            decision=decision,
+                            result=finish_res,
+                        )
+                        history.append(record)
+                        steps_executed += 1
+                        elapsed_ms = int((time.perf_counter() - start_time) * 1000)
+                        return AgentRunResult(
+                            success=True,
+                            termination_reason="goal_achieved",
+                            message=action.message,
+                            steps_executed=steps_executed,
+                            history=history,
+                            duration_ms=elapsed_ms,
+                            diagnostics=diag_summary,
+                        )
+                    else:
+                        # Reject FinishAction(success=True) and inject synthetic failure to prompt verification
+                        rejected_res = ActionResult(
+                            success=False,
+                            action_type="finish",
+                            duration_ms=0,
+                            resolved_by="agent.finish_rejected",
+                            error_message=(
+                                "FinishAction(success=True) was rejected: Goal success requires at least "
+                                "one successful deterministic assertion (AssertAction). Please execute an AssertAction "
+                                "to verify the expected outcome before concluding success."
+                            ),
+                        )
+                        record = StepRecord(
+                            step_number=step_number,
+                            observation=obs,
+                            decision=decision,
+                            result=rejected_res,
+                        )
+                        history.append(record)
+                        steps_executed += 1
+                        last_action_sig = self.compute_action_signature(action)
+                        continue
 
             # Safeguard: Immediate action-loop stagnation
             action_sig = self.compute_action_signature(action)
@@ -216,7 +296,7 @@ class AutonomousTestAgent:
                     diagnostics=diag_summary,
                 )
 
-            # Dispatch browser action
+            # Dispatch browser action (NavigateAction, ClickAction, FillAction, AssertAction)
             action_res = await self.dispatcher.execute(page, action)
 
             # Record executed step into history

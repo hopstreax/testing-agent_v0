@@ -2,7 +2,7 @@
 
 import time
 from typing import Annotated, Literal, Optional, Union
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class BaseAction(BaseModel):
@@ -49,6 +49,54 @@ class NavigateAction(BaseModel):
         return cleaned
 
 
+class AssertAction(BaseAction):
+    """Action to execute a deterministic browser assertion against an element or page."""
+
+    action_type: Literal["assert"] = "assert"
+    assertion_type: Literal[
+        "visible",
+        "hidden",
+        "has_text",
+        "has_value",
+        "has_url",
+        "has_title",
+    ] = Field(..., description="The type of assertion to evaluate.")
+    expected_value: Optional[str] = Field(
+        None,
+        description="Expected value for has_text, has_value, has_url, or has_title assertions.",
+    )
+
+    @model_validator(mode="after")
+    def validate_assertion_requirements(self) -> "AssertAction":
+        # 1. Page assertions (has_url, has_title) require non-empty expected_value
+        if self.assertion_type in ("has_url", "has_title"):
+            if self.expected_value is None or not self.expected_value.strip():
+                raise ValueError(f"Assertion '{self.assertion_type}' requires a non-empty 'expected_value'.")
+            return self
+
+        # 2. Element assertions with expected_value (has_text, has_value)
+        if self.assertion_type in ("has_text", "has_value"):
+            if self.expected_value is None or not self.expected_value.strip():
+                raise ValueError(f"Assertion '{self.assertion_type}' requires a non-empty 'expected_value'.")
+
+        # 3. Element assertions (visible, hidden, has_text, has_value) require a locator criterion
+        has_locator = any([
+            self.role,
+            self.name,
+            self.text,
+            self.placeholder,
+            self.label,
+            self.selector,
+        ])
+        if not has_locator:
+            raise ValueError(
+                f"Assertion '{self.assertion_type}' targets a DOM element and requires at least "
+                "one locator criterion (role, name, text, placeholder, label, selector)."
+            )
+
+        return self
+
+
 class FinishAction(BaseModel):
     """Action signaling test completion or terminal failure."""
 
@@ -67,7 +115,7 @@ class FinishAction(BaseModel):
 
 # Discriminated union of all supported actions
 AgentAction = Annotated[
-    Union[ClickAction, FillAction, NavigateAction, FinishAction],
+    Union[ClickAction, FillAction, NavigateAction, AssertAction, FinishAction],
     Field(discriminator="action_type"),
 ]
 

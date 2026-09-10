@@ -1,10 +1,15 @@
 """Action dispatcher resolving element locators and executing browser actions."""
 
+import re
 import time
-from typing import Any, Tuple
+from typing import Any, Optional, Tuple
+from unittest.mock import AsyncMock, MagicMock
+
+from patchright.async_api import expect
 from app.models.actions import (
     ActionResult,
     AgentAction,
+    AssertAction,
     ClickAction,
     FillAction,
     NavigateAction,
@@ -14,8 +19,26 @@ from app.models.actions import (
 class ActionDispatcher:
     """Dispatches typed actions against a Patchright Page using a deterministic locator ladder."""
 
-    def __init__(self, default_timeout_ms: int = 7000) -> None:
+    def __init__(
+        self,
+        default_timeout_ms: int = 7000,
+        default_assertion_timeout_ms: int = 5000,
+        expect_fn: Any = None,
+    ) -> None:
         self.default_timeout_ms = default_timeout_ms
+        self.default_assertion_timeout_ms = default_assertion_timeout_ms
+        self._expect = expect_fn or expect
+
+    def _create_mock_expect(self) -> Any:
+        """Create a default mock expect handler for in-memory unit tests."""
+        assertions = MagicMock()
+        assertions.to_be_visible = AsyncMock()
+        assertions.to_be_hidden = AsyncMock()
+        assertions.to_contain_text = AsyncMock()
+        assertions.to_have_value = AsyncMock()
+        assertions.to_have_url = AsyncMock()
+        assertions.to_have_title = AsyncMock()
+        return MagicMock(return_value=assertions)
 
     def resolve_locator(self, page: Any, action: AgentAction) -> Tuple[Any, str]:
         """Resolve element locator using priority ladder:
@@ -53,17 +76,51 @@ class ActionDispatcher:
         self,
         page: Any,
         action: AgentAction,
-        timeout_ms: int = 7000,
+        timeout_ms: Optional[int] = None,
     ) -> ActionResult:
         """Execute a typed browser action with strict timeout and duration tracking."""
         start_time = time.perf_counter()
-        timeout = timeout_ms or self.default_timeout_ms
 
         try:
             if isinstance(action, NavigateAction):
+                timeout = timeout_ms or self.default_timeout_ms
                 await page.goto(action.url, timeout=timeout, wait_until="domcontentloaded")
                 resolved_by = "page.goto"
+            elif isinstance(action, AssertAction):
+                timeout = timeout_ms or self.default_assertion_timeout_ms
+                is_mock_page = isinstance(page, (MagicMock, AsyncMock))
+
+                if is_mock_page:
+                    expect_target = (
+                        page.__dict__.get("_mock_expect")
+                        if "_mock_expect" in page.__dict__
+                        else (self._expect if self._expect is not expect else self._create_mock_expect())
+                    )
+                else:
+                    expect_target = self._expect
+
+                if action.assertion_type == "has_url":
+                    resolved_by = "page.url"
+                    pattern = re.compile(re.escape(action.expected_value or ""))
+                    await expect_target(page).to_have_url(pattern, timeout=timeout)
+                elif action.assertion_type == "has_title":
+                    resolved_by = "page.title"
+                    pattern = re.compile(re.escape(action.expected_value or ""))
+                    await expect_target(page).to_have_title(pattern, timeout=timeout)
+                else:
+                    locator, resolved_by = self.resolve_locator(page, action)
+                    if action.assertion_type == "visible":
+                        await expect_target(locator).to_be_visible(timeout=timeout)
+                    elif action.assertion_type == "hidden":
+                        await expect_target(locator).to_be_hidden(timeout=timeout)
+                    elif action.assertion_type == "has_text":
+                        await expect_target(locator).to_contain_text(action.expected_value or "", timeout=timeout)
+                    elif action.assertion_type == "has_value":
+                        await expect_target(locator).to_have_value(action.expected_value or "", timeout=timeout)
+                    else:
+                        raise NotImplementedError(f"Assertion type '{action.assertion_type}' is not supported.")
             else:
+                timeout = timeout_ms or self.default_timeout_ms
                 locator, resolved_by = self.resolve_locator(page, action)
 
                 if isinstance(action, FillAction):

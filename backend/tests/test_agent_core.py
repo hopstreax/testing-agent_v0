@@ -11,6 +11,8 @@ from app.browser.observer import BrowserObserver
 from app.llm.errors import AllProvidersFailedError
 from app.llm.mock import MockLLMProvider
 from app.models.actions import (
+    ActionResult,
+    AssertAction,
     ClickAction,
     FillAction,
     FinishAction,
@@ -82,10 +84,11 @@ async def test_dispatcher_executes_navigate_action_failure() -> None:
 
 
 # =========================================================================
-# AutonomousTestAgent Core Loop Tests
+# AutonomousTestAgent Core Loop & Deterministic Verification Tests
 # =========================================================================
 
 async def test_agent_happy_path_success() -> None:
+    """Happy path: Navigate -> Fill -> Click -> Assert -> Finish(success=True)."""
     mock_page = make_mock_page()
 
     provider = MockLLMProvider(script=[
@@ -106,6 +109,11 @@ async def test_agent_happy_path_success() -> None:
         ),
         StepDecision(
             observation_summary="Dashboard loaded.",
+            decision="Verify welcome heading is visible.",
+            action=AssertAction(assertion_type="visible", role="heading", name="Welcome"),
+        ),
+        StepDecision(
+            observation_summary="Assertion verified.",
             decision="Goal satisfied.",
             action=FinishAction(success=True, message="Login flow verified successfully"),
         ),
@@ -117,8 +125,8 @@ async def test_agent_happy_path_success() -> None:
     assert result.success is True
     assert result.termination_reason == "goal_achieved"
     assert result.message == "Login flow verified successfully"
-    assert result.steps_executed == 4
-    assert len(result.history) == 4
+    assert result.steps_executed == 5
+    assert len(result.history) == 5
 
     # Verify chronological step records
     assert result.history[0].step_number == 1
@@ -128,12 +136,15 @@ async def test_agent_happy_path_success() -> None:
     assert result.history[2].step_number == 3
     assert result.history[2].decision.action.action_type == "click"
     assert result.history[3].step_number == 4
-    assert result.history[3].decision.action.action_type == "finish"
-    assert result.history[3].result.action_type == "finish"
+    assert result.history[3].decision.action.action_type == "assert"
     assert result.history[3].result.success is True
+    assert result.history[4].step_number == 5
+    assert result.history[4].decision.action.action_type == "finish"
+    assert result.history[4].result.success is True
 
 
 async def test_agent_terminal_failure() -> None:
+    """FinishAction(success=False) terminates immediately without requiring assertions."""
     mock_page = make_mock_page()
 
     provider = MockLLMProvider(script=[
@@ -152,12 +163,158 @@ async def test_agent_terminal_failure() -> None:
     assert result.message == "User is blocked from logging in"
     assert result.steps_executed == 1
     assert len(result.history) == 1
+    assert result.history[0].result.success is False
+
+
+async def test_agent_blocks_finish_success_without_prior_assertion() -> None:
+    """Finish(success=True) without prior assertion is rejected, logs error, and lets agent recover."""
+    mock_page = make_mock_page()
+
+    provider = MockLLMProvider(script=[
+        # Turn 1: LLM tries to finish with success prematurely
+        StepDecision(
+            observation_summary="Page loaded.",
+            decision="Declare victory without checking.",
+            action=FinishAction(success=True, message="Premature victory"),
+        ),
+        # Turn 2: LLM learns from rejection error in history and runs AssertAction
+        StepDecision(
+            observation_summary="Rejected finish observed in history.",
+            decision="Run assertion to verify state.",
+            action=AssertAction(assertion_type="visible", role="button", name="Submit"),
+        ),
+        # Turn 3: LLM finishes now that assertion succeeded
+        StepDecision(
+            observation_summary="Assertion succeeded.",
+            decision="Finish now.",
+            action=FinishAction(success=True, message="Properly verified victory"),
+        ),
+    ])
+
+    agent = AutonomousTestAgent(llm_provider=provider, max_steps=10)
+    result = await agent.run(mock_page, goal="Test anti-hallucination verification")
+
+    assert result.success is True
+    assert result.termination_reason == "goal_achieved"
+    assert result.steps_executed == 3
+    assert len(result.history) == 3
+
+    # Check that turn 1 was recorded as a rejected finish
+    assert result.history[0].step_number == 1
+    assert result.history[0].decision.action.action_type == "finish"
+    assert result.history[0].result.success is False
+    assert result.history[0].result.resolved_by == "agent.finish_rejected"
+    assert "requires at least one successful deterministic assertion" in (result.history[0].result.error_message or "")
+
+    # Check turn 2 succeeded as an assertion
+    assert result.history[1].step_number == 2
+    assert result.history[1].decision.action.action_type == "assert"
+    assert result.history[1].result.success is True
+
+    # Check turn 3 concluded successfully
+    assert result.history[2].step_number == 3
+    assert result.history[2].result.success is True
+
+
+async def test_agent_recovers_after_failed_assertion() -> None:
+    """Failed assertion enters history and allows agent to recover on next turn."""
+    mock_page = make_mock_page()
+
+    dispatcher = ActionDispatcher()
+    original_execute = dispatcher.execute
+    call_count = 0
+
+    async def custom_execute(page, action, timeout_ms=None):
+        nonlocal call_count
+        if isinstance(action, AssertAction):
+            call_count += 1
+            if call_count == 1:
+                return ActionResult(
+                    success=False,
+                    action_type="assert",
+                    duration_ms=40,
+                    resolved_by="role=heading",
+                    error_message="Assertion 'has_text' failed: Expected 'Expected Heading' but received 'Loading...'",
+                )
+        return await original_execute(page, action, timeout_ms)
+
+    dispatcher.execute = custom_execute
+
+    provider = MockLLMProvider(script=[
+        # Turn 1: Assert fails
+        StepDecision(
+            observation_summary="Page loaded.",
+            decision="Assert heading text.",
+            action=AssertAction(assertion_type="has_text", role="heading", name="Title", expected_value="Expected Heading"),
+        ),
+        # Turn 2: LLM sees failure in history, tries alternate assertion which succeeds
+        StepDecision(
+            observation_summary="Observed assertion mismatch in history.",
+            decision="Assert button visibility instead.",
+            action=AssertAction(assertion_type="visible", role="button", name="Submit"),
+        ),
+        # Turn 3: Conclude
+        StepDecision(
+            observation_summary="Button verified.",
+            decision="Conclude test.",
+            action=FinishAction(success=True, message="Recovered from assertion failure"),
+        ),
+    ])
+
+    agent = AutonomousTestAgent(llm_provider=provider, dispatcher=dispatcher, max_steps=10)
+    result = await agent.run(mock_page, goal="Test assertion failure recovery")
+
+    assert result.success is True
+    assert result.termination_reason == "goal_achieved"
+    assert result.steps_executed == 3
+    assert result.history[0].result.success is False
+    assert "Expected Heading" in (result.history[0].result.error_message or "")
+    assert result.history[1].result.success is True
+    assert result.history[2].result.success is True
+
+
+async def test_agent_repeated_failed_assertion_stagnation() -> None:
+    """Repeatedly executing the exact same failed assertion on unchanged state triggers stagnation."""
+    mock_page = make_mock_page()
+
+    dispatcher = ActionDispatcher()
+
+    async def failing_execute(page, action, timeout_ms=None):
+        return ActionResult(
+            success=False,
+            action_type="assert",
+            duration_ms=30,
+            resolved_by="role=button",
+            error_message="Assertion 'visible' failed: Locator not found",
+        )
+
+    dispatcher.execute = failing_execute
+
+    same_assert = AssertAction(assertion_type="visible", role="button", name="Missing")
+    provider = MockLLMProvider(script=[
+        StepDecision(
+            observation_summary="Looking for button.",
+            decision="Assert button is visible.",
+            action=same_assert,
+        ),
+        StepDecision(
+            observation_summary="Looking for button again.",
+            decision="Retry asserting button is visible.",
+            action=same_assert,
+        ),
+    ])
+
+    agent = AutonomousTestAgent(llm_provider=provider, dispatcher=dispatcher, max_steps=10)
+    result = await agent.run(mock_page, goal="Test assertion stagnation")
+
+    assert result.success is False
+    assert result.termination_reason == "stagnation_detected"
+    assert result.steps_executed == 1
 
 
 async def test_agent_max_steps_exceeded() -> None:
     mock_page = make_mock_page()
 
-    # Endless clicks
     endless_decisions = [
         StepDecision(
             observation_summary=f"Step {i}",
@@ -168,7 +325,6 @@ async def test_agent_max_steps_exceeded() -> None:
     ]
     provider = MockLLMProvider(script=endless_decisions)
 
-    # Hard cap at 3 steps
     agent = AutonomousTestAgent(llm_provider=provider, max_steps=3)
     result = await agent.run(mock_page, goal="Test endless loop")
 
@@ -182,7 +338,6 @@ async def test_agent_max_steps_exceeded() -> None:
 async def test_agent_action_loop_stagnation() -> None:
     mock_page = make_mock_page()
 
-    # Repeat exact same ClickAction on exact same state
     same_click = ClickAction(role="button", name="Retry")
     provider = MockLLMProvider(script=[
         StepDecision(
@@ -203,14 +358,12 @@ async def test_agent_action_loop_stagnation() -> None:
     assert result.success is False
     assert result.termination_reason == "stagnation_detected"
     assert "identical action 'click' repeated consecutively" in result.message
-    # Step 1 ran; before step 2 dispatched, loop stagnation halted execution
     assert result.steps_executed == 1
 
 
 async def test_agent_prolonged_state_stagnation_detected() -> None:
     mock_page = make_mock_page()
 
-    # 3 consecutive actions on the exact same target where state remains unchanged
     provider = MockLLMProvider(script=[
         StepDecision(
             observation_summary="Input visible.",
@@ -239,7 +392,6 @@ async def test_agent_prolonged_state_stagnation_detected() -> None:
 
 
 async def test_agent_sequential_form_filling_does_not_falsely_stagnate() -> None:
-    # ARIA snapshot stays unchanged, but actions are different successful fills
     mock_page = make_mock_page(aria_snapshot="- textbox 'First Name'\n- textbox 'Last Name'\n- textbox 'Email'")
 
     provider = MockLLMProvider(script=[
@@ -259,6 +411,11 @@ async def test_agent_sequential_form_filling_does_not_falsely_stagnate() -> None
             action=FillAction(role="textbox", name="Email", value="alice@example.com"),
         ),
         StepDecision(
+            observation_summary="Fields populated.",
+            decision="Verify email field has value.",
+            action=AssertAction(assertion_type="has_value", role="textbox", name="Email", expected_value="alice@example.com"),
+        ),
+        StepDecision(
             observation_summary="Form completed.",
             decision="Done filling.",
             action=FinishAction(success=True, message="All fields filled"),
@@ -268,26 +425,23 @@ async def test_agent_sequential_form_filling_does_not_falsely_stagnate() -> None
     agent = AutonomousTestAgent(llm_provider=provider, max_steps=10)
     result = await agent.run(mock_page, goal="Fill registration form")
 
-    # Must NOT trigger false stagnation
     assert result.success is True
     assert result.termination_reason == "goal_achieved"
-    assert result.steps_executed == 4
+    assert result.steps_executed == 5
     assert result.message == "All fields filled"
 
 
 async def test_agent_action_failure_and_recovery() -> None:
     mock_page = make_mock_page()
 
-    # Custom dispatcher that fails on first action and succeeds on second
     dispatcher = ActionDispatcher()
     original_execute = dispatcher.execute
     call_count = 0
 
-    async def failing_execute(page, action, timeout_ms=7000):
+    async def failing_execute(page, action, timeout_ms=None):
         nonlocal call_count
         call_count += 1
         if call_count == 1:
-            from app.models.actions import ActionResult
             return ActionResult(
                 success=False,
                 action_type=action.action_type,
@@ -306,6 +460,11 @@ async def test_agent_action_failure_and_recovery() -> None:
         ),
         StepDecision(
             observation_summary="Observed button failure in history.",
+            decision="Assert page title instead.",
+            action=AssertAction(assertion_type="has_title", expected_value="Example"),
+        ),
+        StepDecision(
+            observation_summary="Title verified.",
             decision="Finish test acknowledging recovery.",
             action=FinishAction(success=True, message="Recovered from failure"),
         ),
@@ -315,10 +474,11 @@ async def test_agent_action_failure_and_recovery() -> None:
     result = await agent.run(mock_page, goal="Test error recovery")
 
     assert result.success is True
-    assert result.steps_executed == 2
+    assert result.steps_executed == 3
     assert result.history[0].result.success is False
     assert "Locator not found" in (result.history[0].result.error_message or "")
     assert result.history[1].result.success is True
+    assert result.history[2].result.success is True
     assert result.termination_reason == "goal_achieved"
 
 
@@ -362,6 +522,11 @@ async def test_agent_initial_url_navigation() -> None:
     provider = MockLLMProvider(script=[
         StepDecision(
             observation_summary="Page loaded.",
+            decision="Verify URL loaded correctly.",
+            action=AssertAction(assertion_type="has_url", expected_value="example.com/app"),
+        ),
+        StepDecision(
+            observation_summary="URL confirmed.",
             decision="Done.",
             action=FinishAction(success=True, message="Initial page verified"),
         )
@@ -372,8 +537,8 @@ async def test_agent_initial_url_navigation() -> None:
 
     mock_page.goto.assert_awaited_once_with("https://example.com/app", wait_until="domcontentloaded")
     assert result.success is True
-    # Initial url is setup, so step count starts at 1 for the LLM turn
-    assert result.steps_executed == 1
+    # Initial url is setup (step 0); LLM turn 1 is AssertAction, turn 2 is FinishAction
+    assert result.steps_executed == 2
 
 
 async def test_agent_diagnostics_propagation() -> None:
@@ -388,6 +553,11 @@ async def test_agent_diagnostics_propagation() -> None:
     provider = MockLLMProvider(script=[
         StepDecision(
             observation_summary="Error in console.",
+            decision="Verify page title.",
+            action=AssertAction(assertion_type="has_title", expected_value="Example"),
+        ),
+        StepDecision(
+            observation_summary="Title verified.",
             decision="Finish test.",
             action=FinishAction(success=True, message="Diagnostics checked"),
         )
@@ -399,3 +569,4 @@ async def test_agent_diagnostics_propagation() -> None:
     assert result.diagnostics is not None
     assert result.diagnostics["console_error_count"] == 1
     assert result.diagnostics["has_errors"] is True
+    assert result.success is True

@@ -5,6 +5,7 @@ from pydantic import TypeAdapter, ValidationError
 from app.models.actions import (
     ActionResult,
     AgentAction,
+    AssertAction,
     ClickAction,
     FillAction,
     FinishAction,
@@ -59,12 +60,93 @@ def test_discriminated_agent_action():
     parsed_nav = adapter.validate_python(nav_data)
     assert isinstance(parsed_nav, NavigateAction)
 
+    assert_data = {
+        "action_type": "assert",
+        "assertion_type": "visible",
+        "role": "button",
+        "name": "Submit",
+    }
+    parsed_assert = adapter.validate_python(assert_data)
+    assert isinstance(parsed_assert, AssertAction)
+
     finish_data = {"action_type": "finish", "success": True, "message": "Test passed"}
     parsed_finish = adapter.validate_python(finish_data)
     assert isinstance(parsed_finish, FinishAction)
 
     with pytest.raises(ValidationError):
         adapter.validate_python({"action_type": "unknown_action"})
+
+
+def test_assert_action_visible_hidden_valid():
+    a1 = AssertAction(assertion_type="visible", role="button", name="Submit")
+    assert a1.action_type == "assert"
+    assert a1.assertion_type == "visible"
+    assert a1.role == "button"
+    assert a1.name == "Submit"
+
+    a2 = AssertAction(assertion_type="hidden", selector="#loading-spinner")
+    assert a2.action_type == "assert"
+    assert a2.assertion_type == "hidden"
+    assert a2.selector == "#loading-spinner"
+
+
+def test_assert_action_has_text_has_value_valid():
+    a1 = AssertAction(assertion_type="has_text", role="heading", expected_value="Welcome Alice")
+    assert a1.action_type == "assert"
+    assert a1.assertion_type == "has_text"
+    assert a1.expected_value == "Welcome Alice"
+
+    a2 = AssertAction(assertion_type="has_value", placeholder="Email", expected_value="alice@example.com")
+    assert a2.action_type == "assert"
+    assert a2.assertion_type == "has_value"
+    assert a2.expected_value == "alice@example.com"
+
+
+def test_assert_action_has_url_has_title_valid():
+    a1 = AssertAction(assertion_type="has_url", expected_value="https://example.com/dashboard")
+    assert a1.action_type == "assert"
+    assert a1.assertion_type == "has_url"
+    assert a1.expected_value == "https://example.com/dashboard"
+    # Page-level assertions do not require locator fields
+    assert a1.role is None
+    assert a1.selector is None
+
+    a2 = AssertAction(assertion_type="has_title", expected_value="Dashboard - MyApp")
+    assert a2.action_type == "assert"
+    assert a2.assertion_type == "has_title"
+    assert a2.expected_value == "Dashboard - MyApp"
+
+
+def test_assert_action_missing_locator_rejected():
+    # Element assertions without any locator criteria must fail validation
+    with pytest.raises(ValidationError, match="requires at least one locator criterion"):
+        AssertAction(assertion_type="visible")
+
+    with pytest.raises(ValidationError, match="requires at least one locator criterion"):
+        AssertAction(assertion_type="hidden")
+
+    with pytest.raises(ValidationError, match="requires at least one locator criterion"):
+        AssertAction(assertion_type="has_text", expected_value="Hello")
+
+    with pytest.raises(ValidationError, match="requires at least one locator criterion"):
+        AssertAction(assertion_type="has_value", expected_value="John")
+
+
+@pytest.mark.parametrize("empty_val", [None, "", "   "])
+def test_assert_action_missing_expected_value_rejected(empty_val):
+    # has_url and has_title require non-empty expected_value
+    with pytest.raises(ValidationError, match="requires a non-empty 'expected_value'"):
+        AssertAction(assertion_type="has_url", expected_value=empty_val)
+
+    with pytest.raises(ValidationError, match="requires a non-empty 'expected_value'"):
+        AssertAction(assertion_type="has_title", expected_value=empty_val)
+
+    # has_text and has_value require non-empty expected_value
+    with pytest.raises(ValidationError, match="requires a non-empty 'expected_value'"):
+        AssertAction(assertion_type="has_text", role="button", name="OK", expected_value=empty_val)
+
+    with pytest.raises(ValidationError, match="requires a non-empty 'expected_value'"):
+        AssertAction(assertion_type="has_value", role="textbox", expected_value=empty_val)
 
 
 def test_action_result_and_observation_payload():
@@ -153,7 +235,15 @@ def test_step_decision_with_all_action_types():
     )
     assert isinstance(d_nav.action, NavigateAction)
 
-    # 4. Finish
+    # 4. Assert
+    d_assert = StepDecision(
+        observation_summary="Success message banner is visible.",
+        decision="Verifying presence of confirmation text.",
+        action=AssertAction(assertion_type="has_text", selector=".alert", expected_value="Order confirmed"),
+    )
+    assert isinstance(d_assert.action, AssertAction)
+
+    # 5. Finish
     d_finish = StepDecision(
         observation_summary="Dashboard welcome banner visible.",
         decision="Goal verified successfully. Concluding test run.",
@@ -185,6 +275,21 @@ def test_step_decision_serialization_roundtrip():
     assert reconstituted == decision
     assert isinstance(reconstituted.action, ClickAction)
     assert reconstituted.action.name == "Submit"
+
+
+def test_step_decision_assert_serialization_roundtrip():
+    decision = StepDecision(
+        observation_summary="Checking heading.",
+        decision="Verify landing heading.",
+        action=AssertAction(assertion_type="has_text", role="heading", name="Welcome", expected_value="Welcome"),
+    )
+
+    json_str = decision.model_dump_json()
+    reconstituted = StepDecision.model_validate_json(json_str)
+
+    assert reconstituted == decision
+    assert isinstance(reconstituted.action, AssertAction)
+    assert reconstituted.action.expected_value == "Welcome"
 
 
 def test_step_record_construction_and_validation():

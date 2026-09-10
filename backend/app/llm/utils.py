@@ -56,7 +56,7 @@ def serialize_prompt_context(context: StepPromptContext) -> str:
         '  "observation_summary": "Concise summary of current page state",\n'
         '  "decision": "Rationale for why this action was selected",\n'
         '  "action": {\n'
-        '    "action_type": "click" | "fill" | "navigate" | "finish",\n'
+        '    "action_type": "click" | "fill" | "navigate" | "assert" | "finish",\n'
         '    ... action-specific fields ...\n'
         "  }\n"
         "}\n\n"
@@ -64,7 +64,8 @@ def serialize_prompt_context(context: StepPromptContext) -> str:
         '- click: {"action_type": "click", "role": "...", "name": "...", "text": "...", "selector": "..."}\n'
         '- fill: {"action_type": "fill", "value": "text to type", "role": "...", "name": "...", "placeholder": "..."}\n'
         '- navigate: {"action_type": "navigate", "url": "http://..."}\n'
-        '- finish: {"action_type": "finish", "success": true/false, "message": "outcome summary"}\n\n'
+        '- assert: {"action_type": "assert", "assertion_type": "visible" | "hidden" | "has_text" | "has_value" | "has_url" | "has_title", "expected_value": "...", "role": "...", "name": "..."}\n'
+        '- finish: {"action_type": "finish", "success": true/false, "message": "outcome summary"}. Note: success=true requires at least one prior verified assert action.\n\n'
         "Return ONLY the JSON object. Do not include markdown code fences or conversational text outside the JSON."
     )
     sections.append(instructions)
