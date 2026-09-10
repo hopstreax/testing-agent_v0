@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Autonomous Website Testing Agent</title>
+  <style>
+    :root {
+      --bg-primary: #0f172a;
+      --bg-secondary: #1e293b;
+      --bg-tertiary: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent-blue: #38bdf8;
+      --accent-blue-hover: #0284c7;
+      --pass-green: #10b981;
+      --pass-bg: rgba(16, 185, 129, 0.15);
+      --fail-red: #f43f5e;
+      --fail-bg: rgba(244, 63, 94, 0.15);
+      --warn-amber: #f59e0b;
+      --warn-bg: rgba(245, 158, 11, 0.15);
+      --border-color: #334155;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.5;
+      padding: 24px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+    }
+
+    header {
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 20px;
+      margin-bottom: 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .brand h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand h1 span {
+      color: var(--accent-blue);
+    }
+
+    .brand p {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .badge-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .badge-live .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--pass-green);
+    }
+
+    /* Layout grid */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 860px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Form */
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    input[type="text"],
+    textarea,
+    select {
+      width: 100%;
+      background-color: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      transition: border-color 0.15s ease;
+    }
+
+    input[type="text"]:focus,
+    textarea:focus,
+    select:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .checkbox-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: var(--text-main);
+      user-select: none;
+    }
+
+    input[type="checkbox"] {
+      accent-color: var(--accent-blue);
+      width: 16px;
+      height: 16px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      background-color: var(--accent-blue);
+      color: #000;
+      font-weight: 600;
+      font-size: 0.95rem;
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.15s ease, opacity 0.15s ease;
+    }
+
+    .btn:hover:not(:disabled) {
+      background-color: var(--accent-blue-hover);
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background-color: var(--bg-tertiary);
+      color: var(--text-main);
+      font-size: 0.85rem;
+      padding: 8px 12px;
+      width: auto;
+    }
+
+    .btn-secondary:hover {
+      background-color: #475569;
+    }
+
+    /* Running status banner */
+    .status-banner {
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .status-banner.running {
+      background-color: rgba(56, 189, 248, 0.12);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      color: var(--accent-blue);
+    }
+
+    .status-banner.passed {
+      background-color: var(--pass-bg);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--pass-green);
+    }
+
+    .status-banner.failed {
+      background-color: var(--fail-bg);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+      color: var(--fail-red);
+    }
+
+    .status-banner.error {
+      background-color: var(--warn-bg);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      color: var(--warn-amber);
+    }
+
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid rgba(56, 189, 248, 0.3);
+      border-top-color: var(--accent-blue);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .status-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+    }
+
+    .status-subtitle {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Metrics row */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .metric-box {
+      background-color: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px;
+    }
+
+    .metric-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .metric-value {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-top: 4px;
+    }
+
+    /* Failure Diagnosis Card */
+    .diagnosis-card {
+      background-color: rgba(244, 63, 94, 0.08);
+      border: 1px solid rgba(244, 63, 94, 0.4);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+
+    .diagnosis-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      color: var(--fail-red);
+      font-size: 1rem;
+      margin-bottom: 12px;
+    }
+
+    .diagnosis-row {
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+    }
+
+    .diagnosis-tag {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background-color: rgba(244, 63, 94, 0.2);
+      color: #fda4af;
+    }
+
+    .diagnosis-summary {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(244, 63, 94, 0.2);
+      color: var(--text-main);
+      font-size: 0.92rem;
+    }
+
+    /* Verification Table */
+    .table-container {
+      overflow-x: auto;
+      margin-bottom: 20px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+      text-align: left;
+    }
+
+    th {
+      background-color: var(--bg-primary);
+      color: var(--text-muted);
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-color);
+      font-weight: 600;
+    }
+
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-color);
+      vertical-align: top;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .badge-pass {
+      background-color: var(--pass-bg);
+      color: var(--pass-green);
+    }
+
+    .badge-fail {
+      background-color: var(--fail-bg);
+      color: var(--fail-red);
+    }
+
+    /* Screenshots gallery */
+    .screenshot-gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .screenshot-card {
+      background-color: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: border-color 0.15s ease, transform 0.15s ease;
+    }
+
+    .screenshot-card:hover {
+      border-color: var(--accent-blue);
+      transform: translateY(-2px);
+    }
+
+    .screenshot-card img {
+      width: 100%;
+      height: 140px;
+      object-fit: cover;
+      display: block;
+      background-color: #000;
+    }
+
+    .screenshot-caption {
+      padding: 8px 10px;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Lightbox Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.85);
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal.active {
+      display: flex;
+    }
+
+    .modal-content {
+      max-width: 90vw;
+      max-height: 90vh;
+      border-radius: 8px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+
+    /* History list */
+    .history-list {
+      max-height: 280px;
+      overflow-y: auto;
+    }
+
+    .history-item {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border-color);
+      cursor: pointer;
+      transition: background-color 0.15s ease;
+      font-size: 0.85rem;
+    }
+
+    .history-item:hover {
+      background-color: var(--bg-tertiary);
+    }
+
+    .history-item-top {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 2px;
+    }
+
+    .history-id {
+      font-family: var(--font-mono);
+      color: var(--text-main);
+      font-weight: 600;
+      font-size: 0.8rem;
+    }
+
+    .history-url {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .action-links {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .action-link {
+      color: var(--accent-blue);
+      text-decoration: none;
+      font-size: 0.85rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .action-link:hover {
+      text-decoration: underline;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <div class="brand">
+        <h1>Autonomous <span>Testing Agent</span></h1>
+        <p>Test any website autonomously with deterministic verification and root-cause diagnosis.</p>
+      </div>
+      <div class="badge-live">
+        <span class="pulse-dot"></span> Local Engine Ready
+      </div>
+    </header>
+
+    <div class="dashboard-grid">
+      <!-- Left Column: Test Configuration & History -->
+      <div>
+        <div class="card">
+          <h2 class="card-title">Launch New Test</h2>
+          <form id="test-form">
+            <div class="form-group">
+              <label for="url">Target Website URL</label>
+              <input type="text" id="url" required placeholder="https://example.com" value="https://example.com">
+            </div>
+
+            <div class="form-group">
+              <label for="goal">Testing Goal (Natural Language)</label>
+              <textarea id="goal" required placeholder="Verify the homepage title and main call-to-action button">Verify the heading says 'Example Domain' and verify link to more information exists</textarea>
+            </div>
+
+            <div class="form-group">
+              <label for="browser">Browser Engine</label>
+              <select id="browser">
+                <option value="local" selected>Local Chromium (Patchright)</option>
+                <option value="solari">Solari Cloud Browser</option>
+              </select>
+            </div>
+
+            <div class="form-row">
+              <label class="checkbox-label">
+                <input type="checkbox" id="headed"> Run Headed (Visible Browser)
+              </label>
+            </div>
+
+            <button type="submit" id="start-btn" class="btn">
+              <span>Start Autonomous Test</span>
+            </button>
+          </form>
+        </div>
+
+        <!-- Recent Runs Card -->
+        <div class="card">
+          <div class="card-title">
+            <span>Recent Runs</span>
+            <button id="refresh-history-btn" class="btn-secondary" style="font-size:0.75rem; padding: 4px 8px;">Refresh</button>
+          </div>
+          <div id="history-container" class="history-list">
+            <div class="empty-state">No recent runs recorded.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Live Run Results & Evidence -->
+      <div>
+        <div id="results-panel" class="card">
+          <div id="idle-view" class="empty-state">
+            <p>Configure a test on the left and click <strong>Start Autonomous Test</strong>.</p>
+            <p style="margin-top: 8px; font-size: 0.8rem;">Execution trace, deterministic verification, visual evidence, and diagnosis will appear here.</p>
+          </div>
+
+          <div id="active-view" style="display: none;">
+            <!-- Status Banner -->
+            <div id="status-banner" class="status-banner running">
+              <div id="status-spinner" class="spinner"></div>
+              <div>
+                <div id="status-title" class="status-title">STATUS: RUNNING</div>
+                <div id="status-subtitle" class="status-subtitle">Autonomous agent is exploring, observing, and acting...</div>
+              </div>
+            </div>
+
+            <!-- Metrics Grid -->
+            <div class="metrics-grid">
+              <div class="metric-box">
+                <div class="metric-label">Run ID</div>
+                <div id="metric-run-id" class="metric-value" style="font-size: 0.85rem; font-family: var(--font-mono);">-</div>
+              </div>
+              <div class="metric-box">
+                <div class="metric-label">Duration</div>
+                <div id="metric-duration" class="metric-value">0s</div>
+              </div>
+              <div class="metric-box">
+                <div class="metric-label">Steps</div>
+                <div id="metric-steps" class="metric-value">0</div>
+              </div>
+              <div class="metric-box">
+                <div class="metric-label">Termination</div>
+                <div id="metric-termination" class="metric-value" style="font-size: 0.85rem;">-</div>
+              </div>
+            </div>
+
+            <!-- Failure Diagnosis (Prominent, shown only on failure) -->
+            <div id="diagnosis-box" class="diagnosis-card" style="display: none;">
+              <div class="diagnosis-header">
+                <span>⚠ Failure Diagnosis</span>
+              </div>
+              <div class="diagnosis-row">
+                <strong>Classification:</strong> <span id="diag-classification" class="diagnosis-tag">-</span>
+              </div>
+              <div class="diagnosis-row">
+                <strong>Cause:</strong> <span id="diag-cause" class="diagnosis-tag">-</span>
+              </div>
+              <div id="diag-summary" class="diagnosis-summary">-</div>
+            </div>
+
+            <!-- Deterministic Verification Section -->
+            <div id="verification-section" style="margin-top: 24px; display: none;">
+              <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 12px;">Deterministic Verification</h3>
+              <div class="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Step</th>
+                      <th>Type</th>
+                      <th>Target / Selector</th>
+                      <th>Expected</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="assertions-tbody">
+                    <!-- Rows inserted dynamically -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Visual Evidence (Screenshots) -->
+            <div id="evidence-section" style="margin-top: 24px; display: none;">
+              <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 12px;">Visual Evidence</h3>
+              <div id="screenshot-gallery" class="screenshot-gallery">
+                <!-- Screenshots inserted dynamically -->
+              </div>
+            </div>
+
+            <!-- Downloadable Reports & Artifacts -->
+            <div id="artifacts-section" style="margin-top: 24px; border-top: 1px solid var(--border-color); padding-top: 16px; display: none;">
+              <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px;">Run Artifacts:</div>
+              <div class="action-links">
+                <a id="link-report-json" href="#" target="_blank" class="action-link">📄 Open report.json</a>
+                <a id="link-report-md" href="#" target="_blank" class="action-link">📝 View report.md</a>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Image Lightbox Modal -->
+  <div id="image-modal" class="modal" onclick="this.classList.remove('active')">
+    <img id="modal-img" class="modal-content" src="" alt="Screenshot Fullscreen">
+  </div>
+
+  <script>
+    let activeRunId = null;
+    let pollInterval = null;
+    let runStartTime = null;
+
+    const testForm = document.getElementById('test-form');
+    const startBtn = document.getElementById('start-btn');
+    const idleView = document.getElementById('idle-view');
+    const activeView = document.getElementById('active-view');
+    const statusBanner = document.getElementById('status-banner');
+    const statusSpinner = document.getElementById('status-spinner');
+    const statusTitle = document.getElementById('status-title');
+    const statusSubtitle = document.getElementById('status-subtitle');
+    const metricRunId = document.getElementById('metric-run-id');
+    const metricDuration = document.getElementById('metric-duration');
+    const metricSteps = document.getElementById('metric-steps');
+    const metricTermination = document.getElementById('metric-termination');
+    const diagnosisBox = document.getElementById('diagnosis-box');
+    const diagClassification = document.getElementById('diag-classification');
+    const diagCause = document.getElementById('diag-cause');
+    const diagSummary = document.getElementById('diag-summary');
+    const verificationSection = document.getElementById('verification-section');
+    const assertionsTbody = document.getElementById('assertions-tbody');
+    const evidenceSection = document.getElementById('evidence-section');
+    const screenshotGallery = document.getElementById('screenshot-gallery');
+    const artifactsSection = document.getElementById('artifacts-section');
+    const linkReportJson = document.getElementById('link-report-json');
+    const linkReportMd = document.getElementById('link-report-md');
+    const historyContainer = document.getElementById('history-container');
+    const refreshHistoryBtn = document.getElementById('refresh-history-btn');
+
+    // Launch test
+    testForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const url = document.getElementById('url').value.trim();
+      const goal = document.getElementById('goal').value.trim();
+      const browser = document.getElementById('browser').value;
+      const headed = document.getElementById('headed').checked;
+
+      startBtn.disabled = true;
+      startBtn.innerHTML = '<span>Launching Test...</span>';
+
+      try {
+        const res = await fetch('/api/runs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: url,
+            goal: goal,
+            browser: browser,
+            headless: !headed,
+          }),
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          alert('Failed to launch run: ' + (errData.detail || res.statusText));
+          startBtn.disabled = false;
+          startBtn.innerHTML = '<span>Start Autonomous Test</span>';
+          return;
+        }
+
+        const data = await res.json();
+        activeRunId = data.run_id;
+        runStartTime = Date.now();
+        showRunningView(data.run_id, url, goal);
+        startPolling(data.run_id);
+        fetchHistory();
+      } catch (err) {
+        alert('Network error launching run: ' + err.message);
+        startBtn.disabled = false;
+        startBtn.innerHTML = '<span>Start Autonomous Test</span>';
+      }
+    });
+
+    function showRunningView(runId, url, goal) {
+      idleView.style.display = 'none';
+      activeView.style.display = 'block';
+
+      statusBanner.className = 'status-banner running';
+      statusSpinner.style.display = 'block';
+      statusTitle.textContent = 'STATUS: RUNNING';
+      statusSubtitle.textContent = `Target: ${url}`;
+
+      metricRunId.textContent = runId;
+      metricDuration.textContent = '0s';
+      metricSteps.textContent = '0';
+      metricTermination.textContent = 'executing';
+
+      diagnosisBox.style.display = 'none';
+      verificationSection.style.display = 'none';
+      evidenceSection.style.display = 'none';
+      artifactsSection.style.display = 'none';
+    }
+
+    function startPolling(runId) {
+      if (pollInterval) clearInterval(pollInterval);
+      pollInterval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/runs/${runId}`);
+          if (!res.ok) return;
+          const data = await res.json();
+          renderRunState(data);
+
+          if (data.status !== 'running') {
+            clearInterval(pollInterval);
+            startBtn.disabled = false;
+            startBtn.innerHTML = '<span>Start Autonomous Test</span>';
+            fetchHistory();
+          }
+        } catch (e) {
+          console.error('Polling error:', e);
+        }
+      }, 1000);
+    }
+
+    function renderRunState(data) {
+      metricRunId.textContent = data.run_id;
+
+      if (data.duration_ms) {
+        metricDuration.textContent = (data.duration_ms / 1000).toFixed(1) + 's';
+      } else if (runStartTime) {
+        const elapsed = Math.floor((Date.now() - runStartTime) / 1000);
+        metricDuration.textContent = `${elapsed}s`;
+      }
+
+      if (data.result) {
+        metricSteps.textContent = data.result.steps_executed ?? '-';
+        metricTermination.textContent = data.result.termination_reason ?? '-';
+      }
+
+      if (data.status === 'running') {
+        statusBanner.className = 'status-banner running';
+        statusSpinner.style.display = 'block';
+        statusTitle.textContent = 'STATUS: RUNNING';
+        statusSubtitle.textContent = `Target: ${data.url}`;
+        return;
+      }
+
+      statusSpinner.style.display = 'none';
+
+      if (data.status === 'completed') {
+        statusBanner.className = 'status-banner passed';
+        statusTitle.textContent = '✓ TEST PASSED';
+        statusSubtitle.textContent = data.result?.message || 'Goal successfully achieved and verified.';
+        diagnosisBox.style.display = 'none';
+      } else if (data.status === 'failed') {
+        statusBanner.className = 'status-banner failed';
+        statusTitle.textContent = '✗ TEST FAILED';
+        statusSubtitle.textContent = data.result?.message || 'Goal failed or assertion mismatch.';
+
+        // Render failure diagnosis if present
+        const diag = data.result?.diagnosis;
+        if (diag) {
+          diagnosisBox.style.display = 'block';
+          diagClassification.textContent = diag.classification || 'AUTOMATION_FAILURE';
+          diagCause.textContent = diag.cause || 'UNKNOWN_FAILURE';
+          diagSummary.textContent = diag.summary || '';
+        } else {
+          diagnosisBox.style.display = 'none';
+        }
+      } else if (data.status === 'error') {
+        statusBanner.className = 'status-banner error';
+        statusTitle.textContent = '⚠ EXECUTION ERROR';
+        statusSubtitle.textContent = data.error || 'Server error occurred during execution.';
+        diagnosisBox.style.display = 'none';
+      }
+
+      // Assertions
+      if (data.result?.assertions && data.result.assertions.length > 0) {
+        verificationSection.style.display = 'block';
+        assertionsTbody.innerHTML = '';
+        data.result.assertions.forEach(a => {
+          const row = document.createElement('tr');
+          const isPass = a.success === true;
+          const statusBadge = isPass
+            ? '<span class="badge badge-pass">PASSED</span>'
+            : '<span class="badge badge-fail">FAILED</span>';
+
+          const loc = a.locator ? Object.entries(a.locator).map(([k,v]) => `${k}='${v}'`).join(', ') : '-';
+
+          row.innerHTML = `
+            <td>${a.step_number}</td>
+            <td><code>${a.assertion_type}</code></td>
+            <td>${loc}</td>
+            <td>${a.expected_value || '-'}</td>
+            <td>${statusBadge}</td>
+          `;
+          assertionsTbody.appendChild(row);
+        });
+      } else {
+        verificationSection.style.display = 'none';
+      }
+
+      // Screenshots
+      const screenshots = data.result?.screenshots || [];
+      if (screenshots.length > 0) {
+        evidenceSection.style.display = 'block';
+        screenshotGallery.innerHTML = '';
+        screenshots.forEach(shotRel => {
+          const card = document.createElement('div');
+          card.className = 'screenshot-card';
+          const shotUrl = `/api/runs/${data.run_id}/artifacts/${shotRel}`;
+          card.innerHTML = `
+            <img src="${shotUrl}" alt="${shotRel}" loading="lazy">
+            <div class="screenshot-caption">${shotRel.split('/').pop()}</div>
+          `;
+          card.addEventListener('click', () => {
+            document.getElementById('modal-img').src = shotUrl;
+            document.getElementById('image-modal').classList.add('active');
+          });
+          screenshotGallery.appendChild(card);
+        });
+      } else {
+        evidenceSection.style.display = 'none';
+      }
+
+      // Artifact Links
+      if (data.artifacts) {
+        artifactsSection.style.display = 'block';
+        linkReportJson.href = data.artifacts.report_json;
+        linkReportMd.href = data.artifacts.report_md;
+      }
+    }
+
+    // Recent runs history
+    async function fetchHistory() {
+      try {
+        const res = await fetch('/api/runs');
+        if (!res.ok) return;
+        const runs = await res.json();
+        renderHistory(runs);
+      } catch (e) {
+        console.error('History fetch error:', e);
+      }
+    }
+
+    function renderHistory(runs) {
+      if (!runs || runs.length === 0) {
+        historyContainer.innerHTML = '<div class="empty-state">No recent runs recorded.</div>';
+        return;
+      }
+
+      historyContainer.innerHTML = '';
+      runs.forEach(r => {
+        const item = document.createElement('div');
+        item.className = 'history-item';
+        const badge = r.status === 'completed'
+          ? '<span class="badge badge-pass">PASS</span>'
+          : (r.status === 'failed' ? '<span class="badge badge-fail">FAIL</span>' : `<span class="badge" style="background:#334155;">${r.status}</span>`);
+
+        item.innerHTML = `
+          <div class="history-item-top">
+            <span class="history-id">${r.run_id}</span>
+            ${badge}
+          </div>
+          <div class="history-url">${r.url || ''}</div>
+        `;
+        item.addEventListener('click', () => {
+          activeRunId = r.run_id;
+          fetch(`/api/runs/${r.run_id}`)
+            .then(res => res.json())
+            .then(data => {
+              idleView.style.display = 'none';
+              activeView.style.display = 'block';
+              renderRunState(data);
+              if (data.status === 'running') {
+                startPolling(r.run_id);
+              }
+            });
+        });
+        historyContainer.appendChild(item);
+      });
+    }
+
+    refreshHistoryBtn.addEventListener('click', fetchHistory);
+
+    // Initial history fetch
+    fetchHistory();
+  </script>
+</body>
+</html>

@@ -79,14 +79,32 @@ def parse_args(args: Optional[list[str]] = None) -> argparse.Namespace:
         help="LLM model name override",
     )
 
+    # Subcommand: serve
+    serve_parser = subparsers.add_parser("serve", help="Launch local dashboard web server")
+    serve_parser.add_argument(
+        "--host",
+        type=str,
+        default="127.0.0.1",
+        help="Host interface to bind (default: 127.0.0.1)",
+    )
+    serve_parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Port to listen on (default: 8000)",
+    )
+    serve_parser.add_argument(
+        "--reload",
+        action="store_true",
+        default=False,
+        help="Enable auto-reload for local development",
+    )
+
     return parser.parse_args(args)
 
 
 async def run_cli(args: argparse.Namespace) -> int:
     """Execute the CLI run command asynchronously."""
-    # Load environment variables from .env if present
-    load_dotenv()
-
     print("=" * 64)
     print("AUTONOMOUS WEBSITE TESTING AGENT — TEST EXECUTION")
     print("=" * 64)
@@ -132,10 +150,19 @@ async def run_cli(args: argparse.Namespace) -> int:
 
 def main() -> None:
     """Synchronous CLI entry point."""
+    load_dotenv()
     args = parse_args()
     if args.command == "run":
         exit_code = asyncio.run(run_cli(args))
         sys.exit(exit_code)
+    elif args.command == "serve":
+        import uvicorn
+        if getattr(args, "reload", False):
+            uvicorn.run("app.server:app", host=args.host, port=args.port, reload=True)
+        else:
+            from app.server import app
+            uvicorn.run(app, host=args.host, port=args.port)
+        sys.exit(0)
     sys.exit(1)
 
 
