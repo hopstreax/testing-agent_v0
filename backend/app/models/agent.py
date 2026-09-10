@@ -22,3 +22,7 @@ class AgentRunResult(BaseModel):
     history: List[StepRecord] = Field(default_factory=list, description="Chronological Decision Trace.")
     duration_ms: int = Field(default=0, description="Total wall-clock duration of the test run in milliseconds.")
     diagnostics: Optional[Dict[str, Any]] = Field(None, description="Final browser diagnostics summary.")
+    run_id: Optional[str] = Field(None, description="Unique run identifier.")
+    goal: Optional[str] = Field(None, description="Natural-language testing goal.")
+    target_url: Optional[str] = Field(None, description="Initial target URL.")
+    artifacts_dir: Optional[str] = Field(None, description="Directory containing run artifacts.")

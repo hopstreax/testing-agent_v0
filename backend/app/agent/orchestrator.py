@@ -1,8 +1,9 @@
 """Autonomous testing agent loop and orchestration state machine."""
 
 import asyncio
+from pathlib import Path
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from app.browser.actions import ActionDispatcher
 from app.browser.diagnostics import DiagnosticsCollector
@@ -148,9 +149,26 @@ class AutonomousTestAgent:
         goal: str,
         initial_url: Optional[str] = None,
         test_variables: Optional[Dict[str, str]] = None,
+        screenshot_dir: Optional[Union[str, Path]] = None,
     ) -> AgentRunResult:
         """Execute the autonomous testing loop against the provided page."""
         start_time = time.perf_counter()
+
+        shots_dir: Optional[Path] = Path(screenshot_dir).resolve() if screenshot_dir else None
+        if shots_dir:
+            shots_dir.mkdir(parents=True, exist_ok=True)
+
+        async def _safe_page_screenshot(filename: str) -> Optional[str]:
+            if not shots_dir:
+                return None
+            target = shots_dir / filename
+            if hasattr(page, "screenshot"):
+                try:
+                    await page.screenshot(path=str(target), full_page=False)
+                    return str(target)
+                except Exception:
+                    return None
+            return None
 
         if self.diagnostics:
             self.diagnostics.attach(page)
@@ -164,6 +182,7 @@ class AutonomousTestAgent:
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
+                await _safe_page_screenshot("step_00_navigation_failed.png")
                 elapsed_ms = int((time.perf_counter() - start_time) * 1000)
                 return AgentRunResult(
                     success=False,
@@ -177,12 +196,14 @@ class AutonomousTestAgent:
 
         # Initial observation capture
         try:
-            obs = await self.observer.capture_observation(page)
+            init_shot_path = str(shots_dir / "step_00_initial.png") if shots_dir else None
+            obs = await self.observer.capture_observation(page, screenshot_path=init_shot_path)
         except (TypeError, ValueError, AssertionError, AttributeError):
             raise
         except asyncio.CancelledError:
             raise
         except Exception as exc:
+            await _safe_page_screenshot("step_00_observation_failed.png")
             elapsed_ms = int((time.perf_counter() - start_time) * 1000)
             return AgentRunResult(
                 success=False,
@@ -245,11 +266,13 @@ class AutonomousTestAgent:
                         duration_ms=0,
                         resolved_by="agent.finish",
                     )
+                    finish_shot = await _safe_page_screenshot(f"step_{step_number:02d}_goal_failed.png")
                     record = StepRecord(
                         step_number=step_number,
                         observation=obs,
                         decision=decision,
                         result=finish_res,
+                        screenshot_path=finish_shot,
                     )
                     history.append(record)
                     steps_executed += 1
@@ -276,11 +299,13 @@ class AutonomousTestAgent:
                             duration_ms=0,
                             resolved_by="agent.finish",
                         )
+                        finish_shot = await _safe_page_screenshot(f"step_{step_number:02d}_final.png")
                         record = StepRecord(
                             step_number=step_number,
                             observation=obs,
                             decision=decision,
                             result=finish_res,
+                            screenshot_path=finish_shot,
                         )
                         history.append(record)
                         steps_executed += 1
@@ -312,6 +337,7 @@ class AutonomousTestAgent:
                             observation=obs,
                             decision=decision,
                             result=rejected_res,
+                            screenshot_path=None,
                         )
                         history.append(record)
                         steps_executed += 1
@@ -326,6 +352,7 @@ class AutonomousTestAgent:
                 current_fingerprint == last_state_fingerprint
                 and action_sig == last_action_sig
             ):
+                await _safe_page_screenshot(f"step_{step_number:02d}_stagnation.png")
                 elapsed_ms = int((time.perf_counter() - start_time) * 1000)
                 return AgentRunResult(
                     success=False,
@@ -343,12 +370,20 @@ class AutonomousTestAgent:
             # Dispatch browser action (NavigateAction, ClickAction, FillAction, AssertAction)
             action_res = await self.dispatcher.execute(page, action)
 
+            step_shot_path: Optional[str] = None
+            if shots_dir:
+                if not action_res.success:
+                    step_shot_path = str(shots_dir / f"step_{step_number:02d}_{action.action_type}_failed.png")
+                elif isinstance(action, AssertAction) and action_res.success:
+                    step_shot_path = str(shots_dir / f"step_{step_number:02d}_assert_success.png")
+
             # Record executed step into history
             record = StepRecord(
                 step_number=step_number,
                 observation=obs,
                 decision=decision,
                 result=action_res,
+                screenshot_path=step_shot_path,
             )
             history.append(record)
             steps_executed += 1
@@ -356,12 +391,13 @@ class AutonomousTestAgent:
 
             # Capture post-action observation
             try:
-                next_obs = await self.observer.capture_observation(page)
+                next_obs = await self.observer.capture_observation(page, screenshot_path=step_shot_path)
             except (TypeError, ValueError, AssertionError, AttributeError):
                 raise
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
+                await _safe_page_screenshot(f"step_{step_number:02d}_observation_failed.png")
                 elapsed_ms = int((time.perf_counter() - start_time) * 1000)
                 return AgentRunResult(
                     success=False,
@@ -386,6 +422,7 @@ class AutonomousTestAgent:
                     all_same_target = len(set(target for target, _ in recent_actions_on_same_state)) == 1
 
                     if any_failed or all_same_target:
+                        await _safe_page_screenshot(f"step_{step_number:02d}_stagnation.png")
                         elapsed_ms = int((time.perf_counter() - start_time) * 1000)
                         return AgentRunResult(
                             success=False,
@@ -407,6 +444,7 @@ class AutonomousTestAgent:
             obs = next_obs
 
         # Reached max_steps without FinishAction
+        await _safe_page_screenshot("final_max_steps_exceeded.png")
         elapsed_ms = int((time.perf_counter() - start_time) * 1000)
         final_diags = dict(self.diagnostics.get_summary()) if self.diagnostics else None
         return AgentRunResult(

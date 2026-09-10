@@ -6,6 +6,22 @@ from solari_browser import Solari
 from solari_browser.errors import SolariError
 
 
+from patchright.async_api import async_playwright
+
+
+def _is_browser_connected(browser: Any) -> bool:
+    """Helper verifying connection state for both Solari and Patchright browser objects."""
+    if browser is None:
+        return False
+    conn = getattr(browser, "is_connected", False)
+    if callable(conn):
+        try:
+            return bool(conn())
+        except Exception:
+            return False
+    return bool(conn)
+
+
 class SolariSessionManager:
     """Manages the lifecycle of a remote Solari Browser session and local driver."""
 
@@ -37,7 +53,7 @@ class SolariSessionManager:
     @property
     def is_active(self) -> bool:
         """Returns True if a browser session is currently active and connected."""
-        return self._browser is not None and getattr(self._browser, "is_connected", False)
+        return _is_browser_connected(self._browser)
 
     async def launch(self, recording: bool = False, stealth: bool = False) -> Any:
         """Launch a remote Solari browser session.
@@ -79,6 +95,61 @@ class SolariSessionManager:
                 await client.close()
 
     async def __aenter__(self) -> "SolariSessionManager":
+        await self.launch()
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        await self.close()
+
+
+class LocalBrowserSessionManager:
+    """Manages the lifecycle of a local Patchright Chromium browser session."""
+
+    def __init__(self, headless: bool = True) -> None:
+        self.headless = headless
+        self._playwright: Optional[Any] = None
+        self._browser: Optional[Any] = None
+
+    @property
+    def browser(self) -> Optional[Any]:
+        """Returns active Patchright browser instance."""
+        return self._browser
+
+    @property
+    def is_active(self) -> bool:
+        """Returns True if a browser session is currently active and connected."""
+        return _is_browser_connected(self._browser)
+
+    async def launch(self) -> Any:
+        """Launch a local Patchright Chromium browser."""
+        if self._browser is not None:
+            return self._browser
+
+        self._playwright = await async_playwright().start()
+        self._browser = await self._playwright.chromium.launch(headless=self.headless)
+        return self._browser
+
+    async def new_page(self) -> Any:
+        """Create and return a new Patchright Page on the local session."""
+        if not self._browser:
+            raise RuntimeError("Local browser session not launched. Call launch() first.")
+        return await self._browser.new_page()
+
+    async def close(self) -> None:
+        """Close local browser instance and stop Patchright driver."""
+        browser = self._browser
+        pw = self._playwright
+        self._browser = None
+        self._playwright = None
+
+        try:
+            if browser is not None:
+                await browser.close()
+        finally:
+            if pw is not None:
+                await pw.stop()
+
+    async def __aenter__(self) -> "LocalBrowserSessionManager":
         await self.launch()
         return self
 

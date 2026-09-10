@@ -240,3 +240,4 @@ class StepRecord(BaseModel):
     decision: StepDecision = Field(..., description="LLM reasoning and chosen action")
     result: ActionResult = Field(..., description="Execution outcome from the browser layer")
     timestamp: float = Field(default_factory=time.time, description="Epoch timestamp when step completed")
+    screenshot_path: Optional[str] = Field(None, description="Path to screenshot evidence captured for this step")
