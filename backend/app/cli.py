@@ -114,7 +114,12 @@ async def run_cli(args: argparse.Namespace) -> int:
     print(f"TEST OUTCOME: {status_label}")
     print("=" * 64)
     print(f"Termination: {result.termination_reason}")
-    print(f"Message    : {result.message}")
+    if not result.success and result.failure_diagnosis:
+        print(f"Classification: {result.failure_diagnosis.classification}")
+        print(f"Cause      : {result.failure_diagnosis.cause}")
+        print(f"Reason     : {result.failure_diagnosis.summary}")
+    else:
+        print(f"Message    : {result.message}")
     print(f"Steps      : {result.steps_executed}")
     print(f"Duration   : {result.duration_ms} ms ({result.duration_ms / 1000:.2f}s)")
     print(f"Run Dir    : {run_dir}")

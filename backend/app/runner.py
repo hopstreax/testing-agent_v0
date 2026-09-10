@@ -18,6 +18,7 @@ from app.llm.fallback import FallbackLLMProvider
 from app.llm.gemini import GeminiLLMProvider
 from app.llm.groq import GroqLLMProvider
 from app.llm.ollama import OllamaLLMProvider
+from app.diagnosis import diagnose_failure
 from app.models.agent import AgentRunResult
 from app.reporting import write_reports
 
@@ -156,6 +157,8 @@ class TestRunner:
         run_result.goal = goal
         run_result.target_url = url
         run_result.artifacts_dir = str(run_dir)
+        if not run_result.success and not run_result.failure_diagnosis:
+            run_result.failure_diagnosis = diagnose_failure(run_result)
 
         # 3. Generate and persist structured test artifacts (report.json, report.md)
         write_reports(run_result, run_dir)

@@ -23,6 +23,7 @@ from app.models.actions import (
     SelectAction,
     StepRecord,
 )
+from app.diagnosis import diagnose_failure
 from app.models.agent import AgentRunResult
 
 
@@ -170,6 +171,11 @@ class AutonomousTestAgent:
                     return None
             return None
 
+        def _finalize(res: AgentRunResult) -> AgentRunResult:
+            if not res.success and not res.failure_diagnosis:
+                res.failure_diagnosis = diagnose_failure(res)
+            return res
+
         if self.diagnostics:
             self.diagnostics.attach(page)
 
@@ -184,14 +190,16 @@ class AutonomousTestAgent:
             except Exception as exc:
                 await _safe_page_screenshot("step_00_navigation_failed.png")
                 elapsed_ms = int((time.perf_counter() - start_time) * 1000)
-                return AgentRunResult(
-                    success=False,
-                    termination_reason="unrecoverable_error",
-                    message=f"Initial navigation to '{initial_url}' failed: {exc}",
-                    steps_executed=0,
-                    history=[],
-                    duration_ms=elapsed_ms,
-                    diagnostics=dict(self.diagnostics.get_summary()) if self.diagnostics else None,
+                return _finalize(
+                    AgentRunResult(
+                        success=False,
+                        termination_reason="unrecoverable_error",
+                        message=f"Initial navigation to '{initial_url}' failed: {exc}",
+                        steps_executed=0,
+                        history=[],
+                        duration_ms=elapsed_ms,
+                        diagnostics=dict(self.diagnostics.get_summary()) if self.diagnostics else None,
+                    )
                 )
 
         # Initial observation capture
@@ -205,14 +213,16 @@ class AutonomousTestAgent:
         except Exception as exc:
             await _safe_page_screenshot("step_00_observation_failed.png")
             elapsed_ms = int((time.perf_counter() - start_time) * 1000)
-            return AgentRunResult(
-                success=False,
-                termination_reason="unrecoverable_error",
-                message=f"Initial browser observation failed: {exc}",
-                steps_executed=0,
-                history=[],
-                duration_ms=elapsed_ms,
-                diagnostics=dict(self.diagnostics.get_summary()) if self.diagnostics else None,
+            return _finalize(
+                AgentRunResult(
+                    success=False,
+                    termination_reason="unrecoverable_error",
+                    message=f"Initial browser observation failed: {exc}",
+                    steps_executed=0,
+                    history=[],
+                    duration_ms=elapsed_ms,
+                    diagnostics=dict(self.diagnostics.get_summary()) if self.diagnostics else None,
+                )
             )
 
         steps_executed = 0
@@ -244,14 +254,16 @@ class AutonomousTestAgent:
                 raise
             except Exception as exc:
                 elapsed_ms = int((time.perf_counter() - start_time) * 1000)
-                return AgentRunResult(
-                    success=False,
-                    termination_reason="unrecoverable_error",
-                    message=f"LLM reasoning failed: {exc}",
-                    steps_executed=steps_executed,
-                    history=history,
-                    duration_ms=elapsed_ms,
-                    diagnostics=diag_summary,
+                return _finalize(
+                    AgentRunResult(
+                        success=False,
+                        termination_reason="unrecoverable_error",
+                        message=f"LLM reasoning failed: {exc}",
+                        steps_executed=steps_executed,
+                        history=history,
+                        duration_ms=elapsed_ms,
+                        diagnostics=diag_summary,
+                    )
                 )
 
             action = decision.action
@@ -277,14 +289,16 @@ class AutonomousTestAgent:
                     history.append(record)
                     steps_executed += 1
                     elapsed_ms = int((time.perf_counter() - start_time) * 1000)
-                    return AgentRunResult(
-                        success=False,
-                        termination_reason="goal_failed",
-                        message=action.message,
-                        steps_executed=steps_executed,
-                        history=history,
-                        duration_ms=elapsed_ms,
-                        diagnostics=diag_summary,
+                    return _finalize(
+                        AgentRunResult(
+                            success=False,
+                            termination_reason="goal_failed",
+                            message=action.message,
+                            steps_executed=steps_executed,
+                            history=history,
+                            duration_ms=elapsed_ms,
+                            diagnostics=diag_summary,
+                        )
                     )
                 else:
                     # Success declaration requires at least one successful AssertAction in the run
@@ -310,14 +324,16 @@ class AutonomousTestAgent:
                         history.append(record)
                         steps_executed += 1
                         elapsed_ms = int((time.perf_counter() - start_time) * 1000)
-                        return AgentRunResult(
-                            success=True,
-                            termination_reason="goal_achieved",
-                            message=action.message,
-                            steps_executed=steps_executed,
-                            history=history,
-                            duration_ms=elapsed_ms,
-                            diagnostics=diag_summary,
+                        return _finalize(
+                            AgentRunResult(
+                                success=True,
+                                termination_reason="goal_achieved",
+                                message=action.message,
+                                steps_executed=steps_executed,
+                                history=history,
+                                duration_ms=elapsed_ms,
+                                diagnostics=diag_summary,
+                            )
                         )
                     else:
                         # Reject FinishAction(success=True) and inject synthetic failure to prompt verification
@@ -354,17 +370,19 @@ class AutonomousTestAgent:
             ):
                 await _safe_page_screenshot(f"step_{step_number:02d}_stagnation.png")
                 elapsed_ms = int((time.perf_counter() - start_time) * 1000)
-                return AgentRunResult(
-                    success=False,
-                    termination_reason="stagnation_detected",
-                    message=(
-                        f"Stagnation detected: identical action '{action.action_type}' "
-                        "repeated consecutively on identical page state."
-                    ),
-                    steps_executed=steps_executed,
-                    history=history,
-                    duration_ms=elapsed_ms,
-                    diagnostics=diag_summary,
+                return _finalize(
+                    AgentRunResult(
+                        success=False,
+                        termination_reason="stagnation_detected",
+                        message=(
+                            f"Stagnation detected: identical action '{action.action_type}' "
+                            "repeated consecutively on identical page state."
+                        ),
+                        steps_executed=steps_executed,
+                        history=history,
+                        duration_ms=elapsed_ms,
+                        diagnostics=diag_summary,
+                    )
                 )
 
             # Dispatch browser action (NavigateAction, ClickAction, FillAction, AssertAction)
@@ -399,14 +417,16 @@ class AutonomousTestAgent:
             except Exception as exc:
                 await _safe_page_screenshot(f"step_{step_number:02d}_observation_failed.png")
                 elapsed_ms = int((time.perf_counter() - start_time) * 1000)
-                return AgentRunResult(
-                    success=False,
-                    termination_reason="unrecoverable_error",
-                    message=f"Browser observation failed after action: {exc}",
-                    steps_executed=steps_executed,
-                    history=history,
-                    duration_ms=elapsed_ms,
-                    diagnostics=diag_summary,
+                return _finalize(
+                    AgentRunResult(
+                        success=False,
+                        termination_reason="unrecoverable_error",
+                        message=f"Browser observation failed after action: {exc}",
+                        steps_executed=steps_executed,
+                        history=history,
+                        duration_ms=elapsed_ms,
+                        diagnostics=diag_summary,
+                    )
                 )
 
             # Safeguard: Prolonged unchanged state stagnation with non-progress
@@ -424,17 +444,19 @@ class AutonomousTestAgent:
                     if any_failed or all_same_target:
                         await _safe_page_screenshot(f"step_{step_number:02d}_stagnation.png")
                         elapsed_ms = int((time.perf_counter() - start_time) * 1000)
-                        return AgentRunResult(
-                            success=False,
-                            termination_reason="stagnation_detected",
-                            message=(
-                                f"Stagnation detected: page state remained unchanged across "
-                                f"{consecutive_unchanged_states} consecutive actions with non-progress."
-                            ),
-                            steps_executed=steps_executed,
-                            history=history,
-                            duration_ms=elapsed_ms,
-                            diagnostics=diag_summary,
+                        return _finalize(
+                            AgentRunResult(
+                                success=False,
+                                termination_reason="stagnation_detected",
+                                message=(
+                                    f"Stagnation detected: page state remained unchanged across "
+                                    f"{consecutive_unchanged_states} consecutive actions with non-progress."
+                                ),
+                                steps_executed=steps_executed,
+                                history=history,
+                                duration_ms=elapsed_ms,
+                                diagnostics=diag_summary,
+                            )
                         )
             else:
                 consecutive_unchanged_states = 0
@@ -447,12 +469,14 @@ class AutonomousTestAgent:
         await _safe_page_screenshot("final_max_steps_exceeded.png")
         elapsed_ms = int((time.perf_counter() - start_time) * 1000)
         final_diags = dict(self.diagnostics.get_summary()) if self.diagnostics else None
-        return AgentRunResult(
-            success=False,
-            termination_reason="max_steps_exceeded",
-            message=f"Execution reached maximum limit of {self.max_steps} steps without completing goal.",
-            steps_executed=steps_executed,
-            history=history,
-            duration_ms=elapsed_ms,
-            diagnostics=final_diags,
+        return _finalize(
+            AgentRunResult(
+                success=False,
+                termination_reason="max_steps_exceeded",
+                message=f"Execution reached maximum limit of {self.max_steps} steps without completing goal.",
+                steps_executed=steps_executed,
+                history=history,
+                duration_ms=elapsed_ms,
+                diagnostics=final_diags,
+            )
         )

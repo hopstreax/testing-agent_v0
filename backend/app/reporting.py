@@ -126,6 +126,10 @@ def build_json_report(run_result: AgentRunResult, run_dir: Path) -> Dict[str, An
             if rel_p and rel_p not in collected_screenshots:
                 collected_screenshots.append(rel_p)
 
+    diagnosis_dict = None
+    if run_result.failure_diagnosis:
+        diagnosis_dict = run_result.failure_diagnosis.model_dump()
+
     return {
         "run_id": run_result.run_id or base_dir.name,
         "goal": run_result.goal or "",
@@ -135,6 +139,7 @@ def build_json_report(run_result: AgentRunResult, run_dir: Path) -> Dict[str, An
         "message": run_result.message,
         "duration_ms": run_result.duration_ms,
         "steps_executed": run_result.steps_executed,
+        "diagnosis": diagnosis_dict,
         "assertions": assertions,
         "steps": steps,
         "diagnostics": run_result.diagnostics or {},
@@ -160,6 +165,14 @@ def build_markdown_report(run_result: AgentRunResult, run_dir: Path) -> str:
         f"- **Duration**: {run_result.duration_ms} ms ({duration_s})",
         f"- **Outcome Message**: {run_result.message}\n",
     ]
+
+    # Failure Diagnosis Section if run failed
+    if run_result.failure_diagnosis:
+        fd = run_result.failure_diagnosis
+        lines.append("## Failure Diagnosis")
+        lines.append(f"- **Classification**: `{fd.classification}`")
+        lines.append(f"- **Cause**: `{fd.cause}`")
+        lines.append(f"- **Summary**: {fd.summary}\n")
 
     # Deterministic Verification Section
     lines.append("## Deterministic Verification")
