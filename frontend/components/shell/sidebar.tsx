@@ -103,16 +103,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 </Link>
 
                 {/* Runs */}
-                <button
-                  type="button"
-                  className="flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40 transition-colors w-full cursor-pointer"
-                  title="Runs history (Coming soon in M5.2)"
+                <Link
+                  href="/runs"
+                  className="flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40 transition-colors w-full"
                 >
                   <div className="flex items-center gap-2.5">
                     <Clock className="h-4 w-4 text-zinc-500" />
                     <span>Runs</span>
                   </div>
-                </button>
+                </Link>
 
                 {/* Settings */}
                 <button
