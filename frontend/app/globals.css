@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+:root {
+  --background: #090a0c;
+  --foreground: #f4f4f6;
+  --card: #121518;
+  --card-foreground: #f4f4f6;
+  --popover: #121518;
+  --popover-foreground: #f4f4f6;
+  --primary: #34d399;
+  --primary-foreground: #022c22;
+  --secondary: #1a1e22;
+  --secondary-foreground: #e4e4e7;
+  --muted: #16191d;
+  --muted-foreground: #71717a;
+  --accent: #1e242a;
+  --accent-foreground: #34d399;
+  --destructive: #ef4444;
+  --destructive-foreground: #f8fafc;
+  --border: #22272b;
+  --input: #1a1e22;
+  --ring: #10b981;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  min-height: 100vh;
+  overflow-x: hidden;
+  color-scheme: dark;
+}
+
+/* Custom subtle scrollbar for developer tools */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #090a0c;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #272d34;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #39424c;
+}
