@@ -7,7 +7,9 @@ from app.models.actions import (
     AssertAction,
     ClickAction,
     FillAction,
+    HoverAction,
     PressKeyAction,
+    ScrollAction,
     SelectAction,
 )
 
@@ -322,3 +324,81 @@ async def test_execute_select_option_failure_captured(dispatcher, mock_page):
     assert res.success is False
     assert res.action_type == "select"
     assert "Option 'NonExistent' not found" in res.error_message
+
+
+# ---------------------------------------------------------------------------
+# M6.1 ScrollAction and HoverAction Dispatcher Tests
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_execute_scroll_down(dispatcher, mock_page):
+    """Test ScrollAction dispatches page.evaluate window.scrollBy down."""
+    mock_page.evaluate = AsyncMock()
+
+    action = ScrollAction(direction="down", amount=600)
+    res = await dispatcher.execute(mock_page, action)
+
+    assert res.success is True
+    assert res.action_type == "scroll"
+    assert "page.scroll(down, 600px)" in res.resolved_by
+    mock_page.evaluate.assert_awaited_once_with("window.scrollBy(0, 600)")
+
+
+@pytest.mark.asyncio
+async def test_execute_scroll_up(dispatcher, mock_page):
+    """Test ScrollAction dispatches page.evaluate window.scrollBy up with negative delta."""
+    mock_page.evaluate = AsyncMock()
+
+    action = ScrollAction(direction="up", amount=400)
+    res = await dispatcher.execute(mock_page, action)
+
+    assert res.success is True
+    assert res.action_type == "scroll"
+    assert "page.scroll(up, 400px)" in res.resolved_by
+    mock_page.evaluate.assert_awaited_once_with("window.scrollBy(0, -400)")
+
+
+@pytest.mark.asyncio
+async def test_execute_scroll_fallback_mouse(dispatcher):
+    """Test ScrollAction falls back to page.mouse.wheel when evaluate is absent."""
+    page_without_eval = MagicMock(spec=["mouse"])
+    page_without_eval.mouse = MagicMock()
+    page_without_eval.mouse.wheel = AsyncMock()
+
+    action = ScrollAction(direction="down", amount=500)
+    res = await dispatcher.execute(page_without_eval, action)
+
+    assert res.success is True
+    assert res.action_type == "scroll"
+    page_without_eval.mouse.wheel.assert_awaited_once_with(0, 500)
+
+
+@pytest.mark.asyncio
+async def test_execute_hover_success(dispatcher, mock_page):
+    """Test HoverAction resolves locator and executes locator.hover()."""
+    mock_locator = MagicMock()
+    mock_locator.hover = AsyncMock()
+    mock_page.get_by_role = MagicMock(return_value=mock_locator)
+
+    action = HoverAction(role="button", name="Pricing")
+    res = await dispatcher.execute(mock_page, action)
+
+    assert res.success is True
+    assert res.action_type == "hover"
+    assert "role=button, name=Pricing" in res.resolved_by
+    mock_locator.hover.assert_awaited_once_with(timeout=5000)
+
+
+@pytest.mark.asyncio
+async def test_execute_hover_failure_captured(dispatcher, mock_page):
+    """Test HoverAction failures are captured into ActionResult error_message."""
+    mock_locator = MagicMock()
+    mock_locator.hover = AsyncMock(side_effect=TimeoutError("Element not found within timeout"))
+    mock_page.locator = MagicMock(return_value=mock_locator)
+
+    action = HoverAction(selector="#dropdown-trigger")
+    res = await dispatcher.execute(mock_page, action)
+
+    assert res.success is False
+    assert res.action_type == "hover"
+    assert "Element not found within timeout" in res.error_message

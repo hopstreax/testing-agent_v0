@@ -12,8 +12,10 @@ from app.models.actions import (
     AssertAction,
     ClickAction,
     FillAction,
+    HoverAction,
     NavigateAction,
     PressKeyAction,
+    ScrollAction,
     SelectAction,
 )
 
@@ -144,6 +146,13 @@ class ActionDispatcher:
                     await locator.select_option(value=action.value, timeout=timeout)
                 elif action.label is not None:
                     await locator.select_option(label=action.label, timeout=timeout)
+            elif isinstance(action, ScrollAction):
+                delta_y = action.amount if action.direction == "down" else -action.amount
+                if hasattr(page, "evaluate"):
+                    await page.evaluate(f"window.scrollBy(0, {delta_y})")
+                elif hasattr(page, "mouse") and hasattr(page.mouse, "wheel"):
+                    await page.mouse.wheel(0, delta_y)
+                resolved_by = f"page.scroll({action.direction}, {action.amount}px)"
             else:
                 timeout = timeout_ms or self.default_timeout_ms
                 locator, resolved_by = self.resolve_locator(page, action)
@@ -156,6 +165,8 @@ class ActionDispatcher:
                         click_count=action.click_count,
                         timeout=timeout,
                     )
+                elif isinstance(action, HoverAction):
+                    await locator.hover(timeout=timeout)
                 else:
                     raise NotImplementedError(f"Action type '{action.action_type}' is not supported by ActionDispatcher.")
 

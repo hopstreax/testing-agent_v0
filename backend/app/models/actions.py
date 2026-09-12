@@ -152,6 +152,45 @@ class SelectAction(BaseAction):
         return self
 
 
+class ScrollAction(BaseModel):
+    """Action to scroll the page viewport up or down."""
+
+    action_type: Literal["scroll"] = "scroll"
+    direction: Literal["down", "up"] = Field(
+        default="down",
+        description="Scroll direction: 'down' or 'up'.",
+    )
+    amount: int = Field(
+        default=500,
+        ge=1,
+        le=5000,
+        description="Scroll distance in pixels (defaults to 500).",
+    )
+
+
+class HoverAction(BaseAction):
+    """Action to hover over an element using locator criteria."""
+
+    action_type: Literal["hover"] = "hover"
+
+    @model_validator(mode="after")
+    def validate_hover_requirements(self) -> "HoverAction":
+        has_locator = any([
+            self.role,
+            self.name,
+            self.text,
+            self.placeholder,
+            self.label,
+            self.selector,
+        ])
+        if not has_locator:
+            raise ValueError(
+                "HoverAction targets a DOM element and requires at least one locator criterion "
+                "(role, name, text, placeholder, label, selector)."
+            )
+        return self
+
+
 class FinishAction(BaseModel):
     """Action signaling test completion or terminal failure."""
 
@@ -177,6 +216,8 @@ AgentAction = Annotated[
         AssertAction,
         PressKeyAction,
         SelectAction,
+        ScrollAction,
+        HoverAction,
         FinishAction,
     ],
     Field(discriminator="action_type"),

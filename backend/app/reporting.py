@@ -4,7 +4,18 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from app.models.actions import AssertAction, ClickAction, FillAction, FinishAction, NavigateAction, PressKeyAction, SelectAction, StepRecord
+from app.models.actions import (
+    AssertAction,
+    ClickAction,
+    FillAction,
+    FinishAction,
+    HoverAction,
+    NavigateAction,
+    PressKeyAction,
+    ScrollAction,
+    SelectAction,
+    StepRecord,
+)
 from app.models.agent import AgentRunResult
 
 
@@ -32,7 +43,7 @@ def extract_action_details(action: Any) -> Dict[str, Any]:
     """Extract key locator and parameter attributes from an action for structured reporting."""
     details: Dict[str, Any] = {"action_type": getattr(action, "action_type", "unknown")}
 
-    for attr in ("role", "name", "text", "placeholder", "label", "selector", "value", "key", "assertion_type", "expected_value", "success", "message"):
+    for attr in ("role", "name", "text", "placeholder", "label", "selector", "value", "key", "assertion_type", "expected_value", "direction", "amount", "success", "message"):
         val = getattr(action, attr, None)
         if val is not None:
             details[attr] = val
@@ -60,6 +71,11 @@ def format_action_label(action: Any) -> str:
     if isinstance(action, SelectAction):
         opt = f"value='{action.value}'" if action.value is not None else f"label='{action.label}'"
         return f"select({opt})"
+    if isinstance(action, ScrollAction):
+        return f"scroll {action.direction} {action.amount}px"
+    if isinstance(action, HoverAction):
+        target = action.name or action.role or action.selector or action.text or ""
+        return f"hover({target})" if target else "hover"
     if isinstance(action, FinishAction):
         return f"finish(success={action.success})"
 

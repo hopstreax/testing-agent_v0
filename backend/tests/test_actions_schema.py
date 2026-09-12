@@ -9,9 +9,11 @@ from app.models.actions import (
     ClickAction,
     FillAction,
     FinishAction,
+    HoverAction,
     NavigateAction,
     ObservationPayload,
     PressKeyAction,
+    ScrollAction,
     SelectAction,
     StepDecision,
     StepRecord,
@@ -425,3 +427,92 @@ def test_step_decision_deserialization_press_key_and_select():
     assert isinstance(reconstituted_select.action, SelectAction)
     assert reconstituted_select.action.value == "US"
     assert reconstituted_select == dec_select
+
+
+# ---------------------------------------------------------------------------
+# M6.1 ScrollAction and HoverAction Tests
+# ---------------------------------------------------------------------------
+
+def test_scroll_action_defaults():
+    """Test ScrollAction default values."""
+    action = ScrollAction()
+    assert action.action_type == "scroll"
+    assert action.direction == "down"
+    assert action.amount == 500
+
+
+def test_scroll_action_custom():
+    """Test ScrollAction with custom direction and amount."""
+    action = ScrollAction(direction="up", amount=1200)
+    assert action.action_type == "scroll"
+    assert action.direction == "up"
+    assert action.amount == 1200
+
+
+def test_scroll_action_invalid_direction():
+    """Test ScrollAction rejects invalid directions."""
+    with pytest.raises(ValidationError):
+        ScrollAction(direction="left")  # type: ignore
+
+
+def test_scroll_action_invalid_amount():
+    """Test ScrollAction rejects invalid amounts (ge=1, le=5000)."""
+    with pytest.raises(ValidationError):
+        ScrollAction(amount=0)
+    with pytest.raises(ValidationError):
+        ScrollAction(amount=10000)
+
+
+def test_hover_action_valid():
+    """Test HoverAction with valid locator criteria."""
+    action = HoverAction(role="button", name="Solutions")
+    assert action.action_type == "hover"
+    assert action.role == "button"
+    assert action.name == "Solutions"
+
+
+def test_hover_action_missing_locator_rejected():
+    """Test HoverAction rejects missing locator criteria."""
+    with pytest.raises(ValidationError) as exc:
+        HoverAction()
+    assert "requires at least one locator criterion" in str(exc.value)
+
+
+def test_agent_action_union_scroll_and_hover():
+    """Test AgentAction discriminated union parses scroll and hover actions."""
+    adapter = TypeAdapter(AgentAction)
+
+    scroll_data = {"action_type": "scroll", "direction": "up", "amount": 350}
+    parsed_scroll = adapter.validate_python(scroll_data)
+    assert isinstance(parsed_scroll, ScrollAction)
+    assert parsed_scroll.direction == "up"
+    assert parsed_scroll.amount == 350
+
+    hover_data = {"action_type": "hover", "selector": "#dropdown-nav"}
+    parsed_hover = adapter.validate_python(hover_data)
+    assert isinstance(parsed_hover, HoverAction)
+    assert parsed_hover.selector == "#dropdown-nav"
+
+
+def test_step_decision_deserialization_scroll_and_hover():
+    """Test StepDecision roundtrip serialization for scroll and hover."""
+    dec_scroll = StepDecision(
+        observation_summary="Page loaded, target below fold.",
+        decision="Scroll down to reveal footer.",
+        action=ScrollAction(direction="down", amount=800),
+    )
+    json_scroll = dec_scroll.model_dump_json()
+    reconstituted_scroll = StepDecision.model_validate_json(json_scroll)
+    assert isinstance(reconstituted_scroll.action, ScrollAction)
+    assert reconstituted_scroll.action.direction == "down"
+    assert reconstituted_scroll.action.amount == 800
+
+    dec_hover = StepDecision(
+        observation_summary="Navigation bar visible.",
+        decision="Hover over Products to reveal submenu.",
+        action=HoverAction(role="menuitem", name="Products"),
+    )
+    json_hover = dec_hover.model_dump_json()
+    reconstituted_hover = StepDecision.model_validate_json(json_hover)
+    assert isinstance(reconstituted_hover.action, HoverAction)
+    assert reconstituted_hover.action.name == "Products"

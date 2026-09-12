@@ -16,9 +16,11 @@ from app.models.actions import (
     ClickAction,
     FillAction,
     FinishAction,
+    HoverAction,
     NavigateAction,
     ObservationPayload,
     PressKeyAction,
+    ScrollAction,
     SelectAction,
     StepDecision,
 )
@@ -36,9 +38,13 @@ def make_mock_page(
     mock_page.aria_snapshot = AsyncMock(return_value=aria_snapshot)
     mock_page.screenshot = AsyncMock()
     mock_page.goto = AsyncMock()
+    mock_page.evaluate = AsyncMock()
 
     mock_page.keyboard = MagicMock()
     mock_page.keyboard.press = AsyncMock()
+
+    mock_page.mouse = MagicMock()
+    mock_page.mouse.wheel = AsyncMock()
 
     # Mock locator ladder
     mock_locator = MagicMock()
@@ -46,6 +52,7 @@ def make_mock_page(
     mock_locator.fill = AsyncMock()
     mock_locator.press = AsyncMock()
     mock_locator.select_option = AsyncMock()
+    mock_locator.hover = AsyncMock()
     mock_page.get_by_role = MagicMock(return_value=mock_locator)
     mock_page.get_by_text = MagicMock(return_value=mock_locator)
     mock_page.get_by_placeholder = MagicMock(return_value=mock_locator)
@@ -679,3 +686,95 @@ async def test_agent_stagnation_distinguishes_different_keys_and_options() -> No
     assert target_country != target_state
     # Same element with different values has the same target identity (matching FillAction semantics)
     assert target_country == target_country_alt
+
+
+async def test_agent_executes_scroll_action_and_completes() -> None:
+    mock_page = make_mock_page()
+
+    provider = MockLLMProvider(script=[
+        StepDecision(
+            observation_summary="Page loaded, target below fold.",
+            decision="Scroll down to reveal footer content.",
+            action=ScrollAction(direction="down", amount=500),
+        ),
+        StepDecision(
+            observation_summary="Scrolled down, footer heading visible.",
+            decision="Assert footer heading is visible.",
+            action=AssertAction(assertion_type="visible", role="heading", name="Footer"),
+        ),
+        StepDecision(
+            observation_summary="Assertion passed.",
+            decision="Complete goal.",
+            action=FinishAction(success=True, message="Scrolled and verified footer"),
+        ),
+    ])
+
+    agent = AutonomousTestAgent(llm_provider=provider, max_steps=5)
+    result = await agent.run(mock_page, goal="Test scrolling to footer")
+
+    assert result.success is True
+    assert result.termination_reason == "goal_achieved"
+    assert result.steps_executed == 3
+    assert result.history[0].decision.action.action_type == "scroll"
+    assert result.history[0].result.success is True
+    assert result.history[0].result.resolved_by == "page.scroll(down, 500px)"
+    assert result.history[1].decision.action.action_type == "assert"
+    assert result.history[2].decision.action.action_type == "finish"
+
+
+async def test_agent_executes_hover_action_and_completes() -> None:
+    mock_page = make_mock_page()
+
+    provider = MockLLMProvider(script=[
+        StepDecision(
+            observation_summary="Navigation bar visible.",
+            decision="Hover over Products menu item.",
+            action=HoverAction(role="button", name="Products"),
+        ),
+        StepDecision(
+            observation_summary="Dropdown menu revealed.",
+            decision="Assert dropdown link is visible.",
+            action=AssertAction(assertion_type="visible", role="link", name="Analytics"),
+        ),
+        StepDecision(
+            observation_summary="Assertion passed.",
+            decision="Complete goal.",
+            action=FinishAction(success=True, message="Hover revealed dropdown successfully"),
+        ),
+    ])
+
+    agent = AutonomousTestAgent(llm_provider=provider, max_steps=5)
+    result = await agent.run(mock_page, goal="Test hover dropdown")
+
+    assert result.success is True
+    assert result.termination_reason == "goal_achieved"
+    assert result.steps_executed == 3
+    assert result.history[0].decision.action.action_type == "hover"
+    assert result.history[0].result.success is True
+    assert "role=button" in (result.history[0].result.resolved_by or "")
+    assert result.history[1].decision.action.action_type == "assert"
+    assert result.history[2].decision.action.action_type == "finish"
+
+
+async def test_agent_stagnation_distinguishes_scroll_and_hover() -> None:
+    agent = AutonomousTestAgent(llm_provider=MagicMock())
+
+    # Scroll directions have different signatures and targets
+    sig_down = agent.compute_action_signature(ScrollAction(direction="down", amount=500))
+    sig_up = agent.compute_action_signature(ScrollAction(direction="up", amount=500))
+    sig_down_300 = agent.compute_action_signature(ScrollAction(direction="down", amount=300))
+    assert sig_down != sig_up
+    assert sig_down != sig_down_300
+
+    target_down = agent.compute_action_target(ScrollAction(direction="down", amount=500))
+    target_up = agent.compute_action_target(ScrollAction(direction="up", amount=500))
+    assert target_down != target_up
+
+    # Hover signatures and targets distinguish elements
+    sig_hover_btn = agent.compute_action_signature(HoverAction(role="button", name="Menu"))
+    sig_hover_link = agent.compute_action_signature(HoverAction(role="link", name="Menu"))
+    assert sig_hover_btn != sig_hover_link
+
+    target_hover_btn = agent.compute_action_target(HoverAction(role="button", name="Menu"))
+    target_hover_link = agent.compute_action_target(HoverAction(role="link", name="Menu"))
+    assert target_hover_btn != target_hover_link

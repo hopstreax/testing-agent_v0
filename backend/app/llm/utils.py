@@ -56,7 +56,7 @@ def serialize_prompt_context(context: StepPromptContext) -> str:
         '  "observation_summary": "Concise summary of current page state",\n'
         '  "decision": "Rationale for why this action was selected",\n'
         '  "action": {\n'
-        '    "action_type": "click" | "fill" | "navigate" | "assert" | "press_key" | "select" | "finish",\n'
+        '    "action_type": "click" | "fill" | "navigate" | "assert" | "press_key" | "select" | "scroll" | "hover" | "finish",\n'
         '    ... action-specific fields ...\n'
         "  }\n"
         "}\n\n"
@@ -67,6 +67,8 @@ def serialize_prompt_context(context: StepPromptContext) -> str:
         '- assert: {"action_type": "assert", "assertion_type": "visible" | "hidden" | "has_text" | "has_value" | "has_url" | "has_title", "expected_value": "...", "role": "...", "name": "..."}\n'
         '- press_key: {"action_type": "press_key", "key": "Enter" | "Escape" | "Tab" | "ArrowDown" | "ArrowUp" | "Backspace", "role": "...", "name": "...", "selector": "..."}. Note: locator fields are optional; if omitted, key is dispatched globally to the active page.\n'
         '- select: {"action_type": "select", "value": "option_value" OR "label": "Option Label", "role": "combobox", "name": "...", "selector": "..."}. Note: targets native <select> controls; requires a locator and exactly one of value or label.\n'
+        '- scroll: {"action_type": "scroll", "direction": "down" | "up", "amount": 500}. Note: use incremental scrolling when the target element is below the current viewport; do not repeatedly scroll if the observation is unchanged.\n'
+        '- hover: {"action_type": "hover", "role": "...", "name": "...", "text": "...", "selector": "..."}. Note: use when interaction requires revealing a hover menu, tooltip, or dropdown before interacting with the revealed content.\n'
         '- finish: {"action_type": "finish", "success": true/false, "message": "outcome summary"}. Note: success=true requires at least one prior verified assert action.\n\n'
         "Return ONLY the JSON object. Do not include markdown code fences or conversational text outside the JSON."
     )

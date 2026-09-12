@@ -17,9 +17,11 @@ from app.models.actions import (
     ClickAction,
     FillAction,
     FinishAction,
+    HoverAction,
     NavigateAction,
     ObservationPayload,
     PressKeyAction,
+    ScrollAction,
     SelectAction,
     StepRecord,
 )
@@ -97,6 +99,18 @@ class AutonomousTestAgent:
                 action.value,
                 action.label,
             )
+        if isinstance(action, ScrollAction):
+            return ("scroll", action.direction, action.amount)
+        if isinstance(action, HoverAction):
+            return (
+                "hover",
+                action.role,
+                action.name,
+                action.text,
+                action.placeholder,
+                action.label,
+                action.selector,
+            )
         if isinstance(action, FinishAction):
             return ("finish", action.success)
         return (action.action_type,)
@@ -138,6 +152,18 @@ class AutonomousTestAgent:
                 action.name,
                 action.text,
                 action.placeholder,
+                action.selector,
+            )
+        if isinstance(action, ScrollAction):
+            return ("scroll", action.direction)
+        if isinstance(action, HoverAction):
+            return (
+                "hover",
+                action.role,
+                action.name,
+                action.text,
+                action.placeholder,
+                action.label,
                 action.selector,
             )
         if isinstance(action, FinishAction):
@@ -394,6 +420,8 @@ class AutonomousTestAgent:
                     step_shot_path = str(shots_dir / f"step_{step_number:02d}_{action.action_type}_failed.png")
                 elif isinstance(action, AssertAction) and action_res.success:
                     step_shot_path = str(shots_dir / f"step_{step_number:02d}_assert_success.png")
+                elif isinstance(action, (ScrollAction, HoverAction)) and action_res.success:
+                    step_shot_path = str(shots_dir / f"step_{step_number:02d}_{action.action_type}.png")
 
             # Record executed step into history
             record = StepRecord(

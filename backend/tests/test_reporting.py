@@ -10,8 +10,10 @@ from app.models.actions import (
     ClickAction,
     FillAction,
     FinishAction,
+    HoverAction,
     NavigateAction,
     ObservationPayload,
+    ScrollAction,
     StepDecision,
     StepRecord,
 )
@@ -46,6 +48,9 @@ def test_format_action_label() -> None:
     assert "navigate" in format_action_label(NavigateAction(url="https://example.com"))
     assert "assert" in format_action_label(AssertAction(assertion_type="visible", role="heading"))
     assert "finish" in format_action_label(FinishAction(success=True, message="Done"))
+    assert format_action_label(ScrollAction(direction="down", amount=500)) == "scroll down 500px"
+    assert format_action_label(ScrollAction(direction="up", amount=250)) == "scroll up 250px"
+    assert format_action_label(HoverAction(role="button", name="Menu")) == "hover(Menu)"
 
 
 def test_extract_action_details() -> None:
@@ -55,6 +60,16 @@ def test_extract_action_details() -> None:
     assert details["assertion_type"] == "has_text"
     assert details["role"] == "heading"
     assert details["expected_value"] == "Hello"
+
+    scroll_details = extract_action_details(ScrollAction(direction="down", amount=400))
+    assert scroll_details["action_type"] == "scroll"
+    assert scroll_details["direction"] == "down"
+    assert scroll_details["amount"] == 400
+
+    hover_details = extract_action_details(HoverAction(role="link", name="Pricing"))
+    assert hover_details["action_type"] == "hover"
+    assert hover_details["role"] == "link"
+    assert hover_details["name"] == "Pricing"
 
 
 def test_build_json_report_structure(tmp_path: Path) -> None:

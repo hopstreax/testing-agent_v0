@@ -52,6 +52,8 @@ export function StepsTrace({
     if (details.value !== undefined) parts.push(`value="${details.value}"`);
     if (details.url) parts.push(`url="${details.url}"`);
     if (details.key) parts.push(`key="${details.key}"`);
+    if (details.direction) parts.push(`direction="${details.direction}"`);
+    if (details.amount !== undefined) parts.push(`amount=${details.amount}px`);
     return parts.join(", ") || "";
   };
 
