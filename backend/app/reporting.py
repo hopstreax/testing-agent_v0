@@ -160,6 +160,8 @@ def build_json_report(run_result: AgentRunResult, run_dir: Path) -> Dict[str, An
         "steps": steps,
         "diagnostics": run_result.diagnostics or {},
         "screenshots": collected_screenshots,
+        "authenticated": getattr(run_result, "authenticated", False),
+        "storage_state": bool(getattr(run_result, "authenticated", False)),
     }
 
 
@@ -169,6 +171,7 @@ def build_markdown_report(run_result: AgentRunResult, run_dir: Path) -> str:
     run_id = run_result.run_id or base_dir.name
     status_str = "**PASSED**" if run_result.success else "**FAILED**"
     duration_s = f"{run_result.duration_ms / 1000:.2f}s"
+    is_auth = getattr(run_result, "authenticated", False)
 
     lines: List[str] = [
         f"# Test Execution Report: `{run_id}`\n",
@@ -179,6 +182,7 @@ def build_markdown_report(run_result: AgentRunResult, run_dir: Path) -> str:
         f"- **Termination Reason**: `{run_result.termination_reason}`",
         f"- **Steps Executed**: {run_result.steps_executed}",
         f"- **Duration**: {run_result.duration_ms} ms ({duration_s})",
+        f"- **Authenticated Session**: {'Yes' if is_auth else 'No'}",
         f"- **Outcome Message**: {run_result.message}\n",
     ]
 

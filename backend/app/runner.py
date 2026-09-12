@@ -61,6 +61,7 @@ class TestRunner:
         observer: Optional[BrowserObserver] = None,
         dispatcher: Optional[ActionDispatcher] = None,
         diagnostics: Optional[DiagnosticsCollector] = None,
+        storage_state: Optional[Union[str, Path, Dict[str, Any]]] = None,
     ) -> None:
         self.artifacts_base_dir = Path(artifacts_base_dir or "artifacts/runs").resolve()
         self.llm_provider = llm_provider
@@ -70,6 +71,7 @@ class TestRunner:
         self.observer = observer or BrowserObserver()
         self.dispatcher = dispatcher or ActionDispatcher()
         self.diagnostics = diagnostics
+        self.storage_state = storage_state
 
     def create_run_directory(self, run_id: Optional[str] = None) -> Tuple[str, Path]:
         """Create a unique timestamped run artifact directory."""
@@ -82,11 +84,12 @@ class TestRunner:
         (run_dir / "screenshots").mkdir(parents=True, exist_ok=True)
         return (run_id, run_dir)
 
-    def _create_session_manager(self) -> Any:
+    def _create_session_manager(self, storage_state: Optional[Union[str, Path, Dict[str, Any]]] = None) -> Any:
         """Instantiate browser session manager based on requested browser type."""
         if self.browser_type == "solari":
             return SolariSessionManager()
-        return LocalBrowserSessionManager(headless=self.headless)
+        effective_state = storage_state if storage_state is not None else self.storage_state
+        return LocalBrowserSessionManager(headless=self.headless, storage_state=effective_state)
 
     async def run(
         self,
@@ -94,6 +97,7 @@ class TestRunner:
         goal: str,
         test_variables: Optional[Dict[str, str]] = None,
         run_id: Optional[str] = None,
+        storage_state: Optional[Union[str, Path, Dict[str, Any]]] = None,
     ) -> Tuple[AgentRunResult, Path]:
         """Execute one autonomous test run end-to-end, guaranteeing artifact generation."""
         start_time = time.perf_counter()
@@ -102,7 +106,8 @@ class TestRunner:
 
         provider = self.llm_provider or resolve_llm_provider()
         diagnostics = self.diagnostics or DiagnosticsCollector()
-        session_mgr = self._create_session_manager()
+        effective_storage_state = storage_state if storage_state is not None else self.storage_state
+        session_mgr = self._create_session_manager(storage_state=effective_storage_state)
 
         agent = AutonomousTestAgent(
             llm_provider=provider,
@@ -157,6 +162,7 @@ class TestRunner:
         run_result.goal = goal
         run_result.target_url = url
         run_result.artifacts_dir = str(run_dir)
+        run_result.authenticated = bool(effective_storage_state)
         if not run_result.success and not run_result.failure_diagnosis:
             run_result.failure_diagnosis = diagnose_failure(run_result)
 

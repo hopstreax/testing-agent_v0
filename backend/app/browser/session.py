@@ -103,12 +103,18 @@ class SolariSessionManager:
 
 
 class LocalBrowserSessionManager:
-    """Manages the lifecycle of a local Patchright Chromium browser session."""
+    """Manages the lifecycle of a local Patchright Chromium browser session with optional storage state."""
 
-    def __init__(self, headless: bool = True) -> None:
+    def __init__(
+        self,
+        headless: bool = True,
+        storage_state: Optional[Any] = None,
+    ) -> None:
         self.headless = headless
+        self.storage_state = str(storage_state) if hasattr(storage_state, "__fspath__") else storage_state
         self._playwright: Optional[Any] = None
         self._browser: Optional[Any] = None
+        self._context: Optional[Any] = None
 
     @property
     def browser(self) -> Optional[Any]:
@@ -133,14 +139,28 @@ class LocalBrowserSessionManager:
         """Create and return a new Patchright Page on the local session."""
         if not self._browser:
             raise RuntimeError("Local browser session not launched. Call launch() first.")
+
+        if self.storage_state is not None:
+            if self._context is None:
+                self._context = await self._browser.new_context(storage_state=self.storage_state)
+            return await self._context.new_page()
+
         return await self._browser.new_page()
 
     async def close(self) -> None:
-        """Close local browser instance and stop Patchright driver."""
+        """Close local browser instance, contexts, and stop Patchright driver."""
+        context = self._context
         browser = self._browser
         pw = self._playwright
+        self._context = None
         self._browser = None
         self._playwright = None
+
+        try:
+            if context is not None:
+                await context.close()
+        except Exception:
+            pass
 
         try:
             if browser is not None:

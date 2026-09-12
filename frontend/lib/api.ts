@@ -9,6 +9,7 @@ export interface RunRequest {
   browser: "local" | "solari";
   headless: boolean;
   max_steps: number;
+  storage_state_path?: string;
 }
 
 export interface RunLaunchResponse {

@@ -525,3 +525,99 @@ def test_cli_main_loads_dotenv() -> None:
             cli_main()
         assert exc.value.code == 0
         assert mock_load.called
+
+
+# ---------------------------------------------------------------------------
+# Storage State Validation Tests
+# ---------------------------------------------------------------------------
+
+def test_post_runs_with_valid_storage_state(client: TestClient, tmp_path: Path) -> None:
+    """Test POST /api/runs accepts valid storage state JSON file."""
+    auth_file = tmp_path / "auth.json"
+    auth_file.write_text(json.dumps({"cookies": [{"name": "sid", "value": "xyz123"}]}), encoding="utf-8")
+
+    with patch.object(RunManager, "start_run") as mock_start:
+        mock_start.return_value = MagicMock(run_id="run_auth_1", status="running", url="http://example.com", goal="Check")
+        res = client.post("/api/runs", json={
+            "url": "http://example.com",
+            "goal": "Check dashboard",
+            "storage_state_path": str(auth_file),
+        })
+        assert res.status_code == 202
+        # Check that validated storage_state_path was passed
+        req = mock_start.call_args.kwargs.get("request") or mock_start.call_args.args[0]
+        assert req.storage_state_path == str(auth_file.resolve())
+
+
+def test_post_runs_rejects_nonexistent_storage_state(client: TestClient, tmp_path: Path) -> None:
+    """Test POST /api/runs rejects nonexistent storage state path."""
+    nonexistent = tmp_path / "does_not_exist.json"
+    res = client.post("/api/runs", json={
+        "url": "http://example.com",
+        "goal": "Check dashboard",
+        "storage_state_path": str(nonexistent),
+    })
+    assert res.status_code == 422
+    assert "not found" in res.text
+
+
+def test_post_runs_rejects_directory_storage_state(client: TestClient, tmp_path: Path) -> None:
+    """Test POST /api/runs rejects directory passed as storage state path."""
+    res = client.post("/api/runs", json={
+        "url": "http://example.com",
+        "goal": "Check dashboard",
+        "storage_state_path": str(tmp_path),
+    })
+    assert res.status_code == 422
+    assert "cannot be a directory" in res.text
+
+
+def test_post_runs_rejects_non_json_storage_state(client: TestClient, tmp_path: Path) -> None:
+    """Test POST /api/runs rejects non-JSON file."""
+    txt_file = tmp_path / "creds.txt"
+    txt_file.write_text("password=secret", encoding="utf-8")
+    res = client.post("/api/runs", json={
+        "url": "http://example.com",
+        "goal": "Check dashboard",
+        "storage_state_path": str(txt_file),
+    })
+    assert res.status_code == 422
+    assert "must be a JSON file" in res.text
+
+
+def test_post_runs_rejects_malformed_json_storage_state(client: TestClient, tmp_path: Path) -> None:
+    """Test POST /api/runs rejects malformed JSON content."""
+    bad_json = tmp_path / "bad.json"
+    bad_json.write_text("{not valid json: ", encoding="utf-8")
+    res = client.post("/api/runs", json={
+        "url": "http://example.com",
+        "goal": "Check dashboard",
+        "storage_state_path": str(bad_json),
+    })
+    assert res.status_code == 422
+    assert "invalid JSON" in res.text
+
+
+def test_post_runs_rejects_storage_state_without_cookies_or_origins(client: TestClient, tmp_path: Path) -> None:
+    """Test POST /api/runs rejects JSON missing cookies or origins keys."""
+    wrong_structure = tmp_path / "wrong.json"
+    wrong_structure.write_text(json.dumps({"some_key": "some_value"}), encoding="utf-8")
+    res = client.post("/api/runs", json={
+        "url": "http://example.com",
+        "goal": "Check dashboard",
+        "storage_state_path": str(wrong_structure),
+    })
+    assert res.status_code == 422
+    assert "containing 'cookies' or 'origins'" in res.text
+
+
+def test_post_runs_null_storage_state_allowed(client: TestClient) -> None:
+    """Test POST /api/runs works normally with null or omitted storage_state_path."""
+    with patch.object(RunManager, "start_run") as mock_start:
+        mock_start.return_value = MagicMock(run_id="run_clean_1", status="running", url="http://example.com", goal="Check")
+        res = client.post("/api/runs", json={
+            "url": "http://example.com",
+            "goal": "Check public page",
+            "storage_state_path": None,
+        })
+        assert res.status_code == 202

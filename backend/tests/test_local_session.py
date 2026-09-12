@@ -91,3 +91,47 @@ async def test_local_browser_session_context_manager() -> None:
         assert mgr.is_active is False
         mock_browser.close.assert_awaited_once()
         mock_pw.stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_local_browser_session_with_storage_state() -> None:
+    """Verify LocalBrowserSessionManager creates context with storage_state."""
+    mock_context = MagicMock()
+    mock_context.new_page = AsyncMock(return_value="authenticated_page")
+    mock_context.close = AsyncMock()
+
+    mock_browser = MagicMock()
+    mock_browser.is_connected = MagicMock(return_value=True)
+    mock_browser.new_context = AsyncMock(return_value=mock_context)
+    mock_browser.close = AsyncMock()
+
+    mock_chromium = MagicMock()
+    mock_chromium.launch = AsyncMock(return_value=mock_browser)
+
+    mock_pw = MagicMock()
+    mock_pw.chromium = mock_chromium
+    mock_pw.stop = AsyncMock()
+
+    with patch("app.browser.session.async_playwright") as mock_async_playwright:
+        mock_pw_builder = MagicMock()
+        mock_pw_builder.start = AsyncMock(return_value=mock_pw)
+        mock_async_playwright.return_value = mock_pw_builder
+
+        manager = LocalBrowserSessionManager(headless=True, storage_state="auth.json")
+        await manager.launch()
+
+        page = await manager.new_page()
+        assert page == "authenticated_page"
+        mock_browser.new_context.assert_awaited_once_with(storage_state="auth.json")
+        mock_context.new_page.assert_awaited_once()
+
+        # Calling new_page again reuses context
+        page2 = await manager.new_page()
+        assert page2 == "authenticated_page"
+        assert mock_browser.new_context.await_count == 1
+
+        # Close releases context and browser
+        await manager.close()
+        mock_context.close.assert_awaited_once()
+        mock_browser.close.assert_awaited_once()
+        mock_pw.stop.assert_awaited_once()

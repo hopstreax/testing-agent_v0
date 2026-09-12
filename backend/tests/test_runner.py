@@ -26,6 +26,12 @@ def test_cli_parse_args_defaults() -> None:
     assert args.max_steps == 15
     assert args.artifacts_dir == "artifacts/runs"
     assert args.provider is None
+    assert args.storage_state is None
+
+
+def test_cli_parse_args_storage_state() -> None:
+    args = parse_args(["run", "--url", "https://example.com", "--goal", "Check", "--storage-state", "auth.json"])
+    assert args.storage_state == "auth.json"
 
 
 def test_cli_parse_args_headed_and_provider() -> None:
@@ -197,3 +203,36 @@ async def test_runner_screenshot_wiring_policy(tmp_path: Path) -> None:
         assert result.success is True
         # Page screenshot was invoked for initial observation, assertion, and final state
         assert mock_page.screenshot.await_count >= 2
+
+
+@pytest.mark.asyncio
+async def test_runner_authenticated_flag_on_result(tmp_path: Path) -> None:
+    """Test TestRunner records authenticated=True on result when storage_state is supplied."""
+    mock_page = make_mock_page()
+    provider = MockLLMProvider(script=[
+        StepDecision(
+            observation_summary="Dashboard loaded",
+            decision="Finish",
+            action=FinishAction(success=True, message="Done"),
+        )
+    ])
+
+    mock_session = MagicMock()
+    mock_session.launch = AsyncMock()
+    mock_session.new_page = AsyncMock(return_value=mock_page)
+    mock_session.close = AsyncMock()
+
+    runner = TestRunner(
+        artifacts_base_dir=tmp_path,
+        llm_provider=provider,
+        storage_state="auth.json",
+    )
+
+    with patch.object(runner, "_create_session_manager", return_value=mock_session) as mock_create_mgr:
+        result, _ = await runner.run(
+            url="https://example.com/dashboard",
+            goal="Check auth state",
+        )
+
+        assert result.authenticated is True
+        mock_create_mgr.assert_called_once_with(storage_state="auth.json")

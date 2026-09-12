@@ -50,3 +50,6 @@ class AgentRunResult(BaseModel):
     failure_diagnosis: Optional[FailureDiagnosis] = Field(
         None, description="Deterministic diagnosis of why the run failed, if applicable."
     )
+    authenticated: bool = Field(
+        default=False, description="True if run executed with authenticated storage state."
+    )

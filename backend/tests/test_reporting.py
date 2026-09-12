@@ -235,3 +235,32 @@ def test_write_reports_file_persistence(tmp_path: Path) -> None:
     md_text = md_path.read_text(encoding="utf-8")
     assert "**FAILED**" in md_text
     assert "Error: 404 not found" in md_text
+
+
+def test_report_authenticated_indicators(tmp_path: Path) -> None:
+    """Verify JSON and Markdown reports indicate authenticated session without leaking secrets."""
+    run_dir = tmp_path / "run_auth_report"
+    run_dir.mkdir(parents=True)
+
+    run_result = AgentRunResult(
+        success=True,
+        termination_reason="goal_achieved",
+        message="Protected view verified",
+        steps_executed=1,
+        history=[],
+        duration_ms=500,
+        run_id="run_auth_777",
+        goal="Test dashboard",
+        target_url="https://app.example.com/dashboard",
+        authenticated=True,
+    )
+
+    json_report = build_json_report(run_result, run_dir)
+    assert json_report["authenticated"] is True
+    assert json_report["storage_state"] is True
+    # Ensure no secrets leak
+    assert "cookies" not in json_report
+    assert "token" not in json_report
+
+    md_report = build_markdown_report(run_result, run_dir)
+    assert "- **Authenticated Session**: Yes" in md_report

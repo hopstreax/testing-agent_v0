@@ -44,6 +44,7 @@ class RunRequest(BaseModel):
     browser: Literal["local", "solari"] = Field("local", description="Browser engine")
     headless: bool = Field(True, description="Run browser in headless mode")
     max_steps: int = Field(15, ge=1, le=50, description="Maximum agent reasoning steps")
+    storage_state_path: Optional[str] = Field(None, description="Path to local Playwright storage_state.json")
 
     @field_validator("url")
     @classmethod
@@ -62,6 +63,51 @@ class RunRequest(BaseModel):
         if not s:
             raise ValueError("Testing goal cannot be empty.")
         return s
+
+    @field_validator("storage_state_path")
+    @classmethod
+    def validate_storage_state_path(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        cleaned = v.strip()
+        if not cleaned:
+            return None
+
+        # Reject null bytes
+        if "\0" in cleaned:
+            raise ValueError("Invalid storage state path.")
+
+        path_obj = Path(cleaned).resolve()
+
+        if not path_obj.exists():
+            raise ValueError(f"Storage state file not found: '{cleaned}'")
+
+        if path_obj.is_dir():
+            raise ValueError(f"Storage state path cannot be a directory: '{cleaned}'")
+
+        if not path_obj.is_file():
+            raise ValueError(f"Storage state path must be a regular file: '{cleaned}'")
+
+        if path_obj.suffix.lower() != ".json":
+            raise ValueError("Storage state file must be a JSON file (.json extension).")
+
+        # Size check (max 5MB)
+        if path_obj.stat().st_size > 5 * 1024 * 1024:
+            raise ValueError("Storage state file exceeds maximum permitted size (5MB).")
+
+        # Validate JSON content structure without leaking secrets
+        try:
+            with open(path_obj, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            raise ValueError("Storage state file contains invalid JSON.")
+
+        if not isinstance(data, dict) or not ("cookies" in data or "origins" in data):
+            raise ValueError(
+                "Storage state file must be a valid Playwright storage state JSON (containing 'cookies' or 'origins')."
+            )
+
+        return str(path_obj)
 
 
 class RunLaunchResponse(BaseModel):
@@ -166,6 +212,7 @@ class RunManager:
                 url=request.url,
                 goal=request.goal,
                 run_id=run_id,
+                storage_state=request.storage_state_path,
             )
 
             # Load generated report.json for rich structured representation

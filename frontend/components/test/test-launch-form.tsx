@@ -22,6 +22,7 @@ export function TestLaunchForm() {
   );
   const [headless, setHeadless] = useState(true);
   const [maxSteps, setMaxSteps] = useState(15);
+  const [storageStatePath, setStorageStatePath] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,6 +69,7 @@ export function TestLaunchForm() {
         browser: "local",
         headless,
         max_steps: maxSteps,
+        storage_state_path: storageStatePath.trim() || undefined,
       });
 
       // Immediate transition to the real run detail page
@@ -185,8 +187,10 @@ export function TestLaunchForm() {
           browser="chromium"
           headless={headless}
           maxSteps={maxSteps}
+          storageStatePath={storageStatePath}
           onHeadlessChange={setHeadless}
           onMaxStepsChange={setMaxSteps}
+          onStorageStatePathChange={setStorageStatePath}
         />
 
         {/* Section 5: FORM FOOTER & RUN BUTTON */}

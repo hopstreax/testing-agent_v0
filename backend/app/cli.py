@@ -78,6 +78,12 @@ def parse_args(args: Optional[list[str]] = None) -> argparse.Namespace:
         default=None,
         help="LLM model name override",
     )
+    run_parser.add_argument(
+        "--storage-state",
+        type=str,
+        default=None,
+        help="Path to local Playwright storage_state.json for authenticated sessions",
+    )
 
     # Subcommand: serve
     serve_parser = subparsers.add_parser("serve", help="Launch local dashboard web server")
@@ -112,20 +118,29 @@ async def run_cli(args: argparse.Namespace) -> int:
     print(f"Target URL : {args.url}")
     print(f"Browser    : {args.browser} ({'headless' if args.headless else 'headed'})")
     print(f"Provider   : {args.provider or 'auto-fallback'}")
-    print(f"Max Steps  : {args.max_steps}")
+    max_steps = getattr(args, "max_steps", 15)
+    storage_state = getattr(args, "storage_state", None)
+    print(f"Max Steps  : {max_steps}")
+    if storage_state:
+        print(f"StorageState: {storage_state} (Authenticated Session)")
     print("=" * 64)
     print("Launching test execution...")
 
-    provider = resolve_llm_provider(provider_name=args.provider, model=args.model)
+    provider = resolve_llm_provider(provider_name=getattr(args, "provider", None), model=getattr(args, "model", None))
     runner = TestRunner(
-        artifacts_base_dir=args.artifacts_dir,
+        artifacts_base_dir=getattr(args, "artifacts_dir", "artifacts/runs"),
         llm_provider=provider,
-        browser_type=args.browser,
-        headless=args.headless,
-        max_steps=args.max_steps,
+        browser_type=getattr(args, "browser", "local"),
+        headless=getattr(args, "headless", True),
+        max_steps=max_steps,
+        storage_state=storage_state,
     )
 
-    result, run_dir = await runner.run(url=args.url, goal=args.goal)
+    result, run_dir = await runner.run(
+        url=args.url,
+        goal=args.goal,
+        storage_state=storage_state,
+    )
 
     print("\n" + "=" * 64)
     status_label = "PASSED" if result.success else "FAILED"
