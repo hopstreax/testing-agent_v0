@@ -333,3 +333,43 @@ def test_reporting_m63_assertions(tmp_path: Path) -> None:
     assert "`enabled`" in md
     assert "`has_count`" in md
     assert "| 5 | `has_count` | `selector='.item'` | 3 | **PASSED** |" in md
+
+
+def test_reporting_m65_index(tmp_path: Path) -> None:
+    """Verify that index appears in action details and formatted labels for M6.5."""
+    click_act = ClickAction(role="button", name="Delete", index=1)
+    details = extract_action_details(click_act)
+    assert details.get("index") == 1
+
+    label = format_action_label(click_act)
+    assert "Delete [index=1]" in label
+
+    assert_act = AssertAction(assertion_type="visible", selector=".row-btn", index=2)
+    assert_details = extract_action_details(assert_act)
+    assert assert_details.get("index") == 2
+    assert_label = format_action_label(assert_act)
+    assert ".row-btn [index=2]" in assert_label
+
+    obs = ObservationPayload(url="https://example.com", title="Test", aria_snapshot="- button Delete")
+    step = StepRecord(
+        step_number=1,
+        observation=obs,
+        decision=StepDecision(observation_summary="Items listed", decision="Click second delete", action=click_act),
+        result=ActionResult(success=True, action_type="click", duration_ms=25, resolved_by="role=button, name=Delete [index=1]"),
+    )
+    run_result = AgentRunResult(
+        success=True,
+        termination_reason="goal_achieved",
+        message="Done",
+        steps_executed=1,
+        history=[step],
+        duration_ms=100,
+        run_id="run_m65",
+        goal="Test M6.5 index reporting",
+        target_url="https://example.com",
+    )
+    json_data = build_json_report(run_result, tmp_path)
+    assert json_data["steps"][0]["action_details"]["index"] == 1
+
+    md = build_markdown_report(run_result, tmp_path)
+    assert "Delete [index=1]" in md

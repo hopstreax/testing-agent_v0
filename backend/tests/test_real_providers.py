@@ -66,6 +66,9 @@ def test_serialize_prompt_context(sample_context: StepPromptContext) -> None:
     assert "console_errors: 0" in text
     assert "username: alice" in text
     assert "StepDecision" in text
+    assert "Disambiguation Rules:" in text
+    assert "index" in text
+    assert "has_count" in text
 
 
 def test_extract_and_parse_step_decision_variants() -> None:

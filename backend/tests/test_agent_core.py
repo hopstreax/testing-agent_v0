@@ -837,3 +837,33 @@ def test_agent_m63_assertion_signatures_and_targets() -> None:
 
     assert sig_enabled != sig_disabled
     assert sig_count_3 != sig_count_0
+
+
+def test_agent_m65_index_in_action_signatures_and_targets() -> None:
+    """Verify that actions targeting different indexes produce distinct signatures and targets."""
+    agent = AutonomousTestAgent(llm_provider=MagicMock())
+
+    click_idx_0 = ClickAction(role="button", name="Delete", index=0)
+    click_idx_1 = ClickAction(role="button", name="Delete", index=1)
+    click_no_idx = ClickAction(role="button", name="Delete")
+
+    sig_0 = agent.compute_action_signature(click_idx_0)
+    sig_1 = agent.compute_action_signature(click_idx_1)
+    sig_none = agent.compute_action_signature(click_no_idx)
+
+    assert sig_0 != sig_1
+    assert sig_0 != sig_none
+
+    target_0 = agent.compute_action_target(click_idx_0)
+    target_1 = agent.compute_action_target(click_idx_1)
+    target_none = agent.compute_action_target(click_no_idx)
+
+    assert target_0 != target_1
+    assert target_0 != target_none
+
+    # Verify AssertAction with index
+    assert_idx_0 = AssertAction(assertion_type="visible", role="button", name="Delete", index=0)
+    assert_idx_1 = AssertAction(assertion_type="visible", role="button", name="Delete", index=1)
+
+    assert agent.compute_action_signature(assert_idx_0) != agent.compute_action_signature(assert_idx_1)
+    assert agent.compute_action_target(assert_idx_0) != agent.compute_action_target(assert_idx_1)

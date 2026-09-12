@@ -43,7 +43,7 @@ def extract_action_details(action: Any) -> Dict[str, Any]:
     """Extract key locator and parameter attributes from an action for structured reporting."""
     details: Dict[str, Any] = {"action_type": getattr(action, "action_type", "unknown")}
 
-    for attr in ("role", "name", "text", "placeholder", "label", "selector", "value", "key", "assertion_type", "expected_value", "direction", "amount", "success", "message"):
+    for attr in ("role", "name", "text", "placeholder", "label", "selector", "index", "value", "key", "assertion_type", "expected_value", "direction", "amount", "success", "message"):
         val = getattr(action, attr, None)
         if val is not None:
             details[attr] = val
@@ -54,30 +54,35 @@ def extract_action_details(action: Any) -> Dict[str, Any]:
 def format_action_label(action: Any) -> str:
     """Format a concise human-readable description of an action for summary tables."""
     action_type = getattr(action, "action_type", "unknown")
+    idx_suffix = f" [index={action.index}]" if getattr(action, "index", None) is not None else ""
 
     if isinstance(action, ClickAction):
-        target = action.name or action.role or action.selector or action.text or ""
-        return f"click({target})" if target else "click"
+        target = (action.name or action.role or action.selector or action.text or "")
+        target_str = f"{target}{idx_suffix}" if target else idx_suffix.strip()
+        return f"click({target_str})" if target_str else "click"
     if isinstance(action, FillAction):
-        target = action.name or action.placeholder or action.role or action.selector or ""
-        return f"fill({target}, value='{action.value}')"
+        target = (action.name or action.placeholder or action.role or action.selector or "")
+        target_str = f"{target}{idx_suffix}" if target else idx_suffix.strip()
+        return f"fill({target_str}, value='{action.value}')"
     if isinstance(action, NavigateAction):
         return f"navigate({action.url})"
     if isinstance(action, AssertAction):
-        target = action.name or action.role or action.selector or action.text or action.expected_value or ""
+        target = (action.name or action.role or action.selector or action.text or action.expected_value or "")
+        target_str = f"{target}{idx_suffix}" if target else idx_suffix.strip()
         if action.assertion_type == "has_count":
             return f"assert(has_count={action.expected_value}, {target})"
-        return f"assert({action.assertion_type}, {target})"
+        return f"assert({action.assertion_type}, {target_str})"
     if isinstance(action, PressKeyAction):
         return f"press_key('{action.key}')"
     if isinstance(action, SelectAction):
         opt = f"value='{action.value}'" if action.value is not None else f"label='{action.label}'"
-        return f"select({opt})"
+        return f"select({opt}{idx_suffix})"
     if isinstance(action, ScrollAction):
         return f"scroll {action.direction} {action.amount}px"
     if isinstance(action, HoverAction):
-        target = action.name or action.role or action.selector or action.text or ""
-        return f"hover({target})" if target else "hover"
+        target = (action.name or action.role or action.selector or action.text or "")
+        target_str = f"{target}{idx_suffix}" if target else idx_suffix.strip()
+        return f"hover({target_str})" if target_str else "hover"
     if isinstance(action, FinishAction):
         return f"finish(success={action.success})"
 

@@ -49,6 +49,7 @@ export function StepsTrace({
     if (details.name) parts.push(`name="${details.name}"`);
     if (details.role) parts.push(`role="${details.role}"`);
     if (details.selector) parts.push(`selector="${details.selector}"`);
+    if (details.index !== undefined) parts.push(`index=${details.index}`);
     if (details.value !== undefined) parts.push(`value="${details.value}"`);
     if (details.url) parts.push(`url="${details.url}"`);
     if (details.key) parts.push(`key="${details.key}"`);

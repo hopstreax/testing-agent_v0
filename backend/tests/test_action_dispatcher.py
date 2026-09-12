@@ -555,3 +555,105 @@ async def test_execute_assert_has_count_failure(dispatcher, mock_page, mock_expe
     assert res.success is False
     assert res.action_type == "assert"
     assert "Expected 3 items, found 1" in res.error_message
+
+
+# =============================================================================
+# Milestone 6.5: Disambiguation & Index Dispatcher Tests
+# =============================================================================
+
+def test_resolve_locator_with_index(dispatcher, mock_page):
+    """Verify resolve_locator applies nth(index) and appends [index=X] to strategy string."""
+    mock_base = MagicMock()
+    mock_nth = MagicMock()
+    mock_base.nth.return_value = mock_nth
+    mock_page.get_by_role.return_value = mock_base
+
+    action = ClickAction(role="button", name="Delete", index=1)
+    locator, strat = dispatcher.resolve_locator(mock_page, action)
+
+    mock_base.nth.assert_called_once_with(1)
+    assert locator == mock_nth
+    assert "role=button, name=Delete [index=1]" in strat
+
+
+def test_resolve_locator_without_index_unchanged(dispatcher, mock_page):
+    """Verify resolve_locator does NOT call nth() when index is None."""
+    mock_base = MagicMock()
+    mock_page.get_by_role.return_value = mock_base
+
+    action = ClickAction(role="button", name="Delete")
+    locator, strat = dispatcher.resolve_locator(mock_page, action)
+
+    mock_base.nth.assert_not_called()
+    assert locator == mock_base
+    assert "[index=" not in strat
+
+
+@pytest.mark.asyncio
+async def test_execute_click_with_index_calls_nth(dispatcher, mock_page):
+    """Verify click execution targets the nth locator element."""
+    mock_base = MagicMock()
+    mock_nth = MagicMock()
+    mock_nth.click = AsyncMock()
+    mock_base.nth.return_value = mock_nth
+    mock_page.get_by_role.return_value = mock_base
+
+    action = ClickAction(role="button", name="Add to cart", index=2)
+    res = await dispatcher.execute(mock_page, action)
+
+    assert res.success is True
+    mock_base.nth.assert_called_once_with(2)
+    mock_nth.click.assert_awaited_once()
+    assert "[index=2]" in res.resolved_by
+
+
+@pytest.mark.asyncio
+async def test_execute_assert_with_index_calls_nth(dispatcher, mock_page, mock_expect):
+    """Verify assertion execution targets the nth locator element."""
+    mock_base = MagicMock()
+    mock_nth = MagicMock()
+    mock_base.nth.return_value = mock_nth
+    mock_page.locator.return_value = mock_base
+
+    action = AssertAction(assertion_type="visible", selector=".card-btn", index=0)
+    res = await dispatcher.execute(mock_page, action)
+
+    assert res.success is True
+    mock_base.nth.assert_called_once_with(0)
+    mock_expect(mock_nth).to_be_visible.assert_awaited_once_with(timeout=5000)
+    assert "[index=0]" in res.resolved_by
+
+
+@pytest.mark.asyncio
+async def test_execute_ambiguous_locator_error_formatting(dispatcher, mock_page):
+    """Verify strict mode violations are formatted with count and index guidance."""
+    mock_base = MagicMock()
+    raw_strict_err = (
+        "Locator.click: Error: strict mode violation: get_by_role(\"button\", name=\"Delete\") resolved to 3 elements:\n"
+        "    1) <button>Delete</button> aka get_by_role(\"button\", name=\"Delete\").first\n"
+        "    2) <button>Delete</button> aka get_by_role(\"button\", name=\"Delete\").nth(1)\n"
+        "    3) <button>Delete</button> aka get_by_role(\"button\", name=\"Delete\").nth(2)\n"
+    )
+    mock_base.click = AsyncMock(side_effect=Exception(raw_strict_err))
+    mock_page.get_by_role.return_value = mock_base
+
+    action = ClickAction(role="button", name="Delete")
+    res = await dispatcher.execute(mock_page, action)
+
+    assert res.success is False
+    assert "Locator matched 3 elements and is ambiguous. Use a more specific locator or provide index=0, 1, or 2." in res.error_message
+    assert "Distinguishing options:" in res.error_message
+
+
+@pytest.mark.asyncio
+async def test_execute_out_of_range_index_immediate_error(dispatcher, mock_page):
+    """Verify out-of-range index fails with a clear message indicating matched count and valid range."""
+    mock_base = MagicMock()
+    mock_base.count = AsyncMock(return_value=3)
+    mock_page.locator.return_value = mock_base
+
+    action = ClickAction(selector=".item-btn", index=5)
+    res = await dispatcher.execute(mock_page, action)
+
+    assert res.success is False
+    assert "Locator index 5 is out of range; locator matched 3 elements. Valid indexes are 0 through 2." in res.error_message

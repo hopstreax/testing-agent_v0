@@ -53,7 +53,7 @@ class AutonomousTestAgent:
     def compute_action_signature(self, action: AgentAction) -> Tuple[Any, ...]:
         """Compute signature representing action intent and parameters."""
         if isinstance(action, ClickAction):
-            return ("click", action.role, action.name, action.selector)
+            return ("click", action.role, action.name, action.selector, action.index)
         if isinstance(action, FillAction):
             return (
                 "fill",
@@ -61,6 +61,7 @@ class AutonomousTestAgent:
                 action.name,
                 action.placeholder,
                 action.selector,
+                action.index,
                 action.value,
             )
         if isinstance(action, NavigateAction):
@@ -75,6 +76,7 @@ class AutonomousTestAgent:
                 action.placeholder,
                 action.label,
                 action.selector,
+                action.index,
                 action.expected_value,
             )
         if isinstance(action, PressKeyAction):
@@ -87,6 +89,7 @@ class AutonomousTestAgent:
                 action.placeholder,
                 action.label,
                 action.selector,
+                action.index,
             )
         if isinstance(action, SelectAction):
             return (
@@ -96,6 +99,7 @@ class AutonomousTestAgent:
                 action.text,
                 action.placeholder,
                 action.selector,
+                action.index,
                 action.value,
                 action.label,
             )
@@ -110,6 +114,7 @@ class AutonomousTestAgent:
                 action.placeholder,
                 action.label,
                 action.selector,
+                action.index,
             )
         if isinstance(action, FinishAction):
             return ("finish", action.success)
@@ -118,9 +123,9 @@ class AutonomousTestAgent:
     def compute_action_target(self, action: AgentAction) -> Tuple[Any, ...]:
         """Compute locator target identity (independent of filled value) for stagnation checks."""
         if isinstance(action, ClickAction):
-            return ("click", action.role, action.name, action.selector)
+            return ("click", action.role, action.name, action.selector, action.index)
         if isinstance(action, FillAction):
-            return ("fill", action.role, action.name, action.placeholder, action.selector)
+            return ("fill", action.role, action.name, action.placeholder, action.selector, action.index)
         if isinstance(action, NavigateAction):
             return ("navigate", action.url)
         if isinstance(action, AssertAction):
@@ -133,6 +138,7 @@ class AutonomousTestAgent:
                 action.placeholder,
                 action.label,
                 action.selector,
+                action.index,
             )
         if isinstance(action, PressKeyAction):
             return (
@@ -144,6 +150,7 @@ class AutonomousTestAgent:
                 action.placeholder,
                 action.label,
                 action.selector,
+                action.index,
             )
         if isinstance(action, SelectAction):
             return (
@@ -153,6 +160,7 @@ class AutonomousTestAgent:
                 action.text,
                 action.placeholder,
                 action.selector,
+                action.index,
             )
         if isinstance(action, ScrollAction):
             return ("scroll", action.direction)
@@ -165,6 +173,7 @@ class AutonomousTestAgent:
                 action.placeholder,
                 action.label,
                 action.selector,
+                action.index,
             )
         if isinstance(action, FinishAction):
             return ("finish",)

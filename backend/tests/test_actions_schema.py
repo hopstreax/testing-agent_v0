@@ -595,3 +595,66 @@ def test_assert_action_m63_discriminated_union_roundtrip():
         reconstituted = StepDecision.model_validate_json(json_str)
         assert isinstance(reconstituted.action, AssertAction)
         assert reconstituted.action.assertion_type == expected_type
+
+
+# =============================================================================
+# Milestone 6.5: Multi-Element Locator Disambiguation Schema Tests
+# =============================================================================
+
+def test_action_index_optional_default_none():
+    """Verify that all BaseAction subclasses default index to None."""
+    click = ClickAction(role="button", name="Delete")
+    assert click.index is None
+
+    fill = FillAction(placeholder="Email", value="test@test.com")
+    assert fill.index is None
+
+    hover = HoverAction(selector=".menu-item")
+    assert hover.index is None
+
+    assertion = AssertAction(assertion_type="visible", role="button", name="Submit")
+    assert assertion.index is None
+
+
+def test_action_index_valid_zero_and_positive():
+    """Verify index accepts 0 and positive integers."""
+    click0 = ClickAction(role="button", name="Delete", index=0)
+    assert click0.index == 0
+
+    click1 = ClickAction(role="button", name="Delete", index=1)
+    assert click1.index == 1
+
+    click5 = ClickAction(selector=".card", index=5)
+    assert click5.index == 5
+
+
+def test_action_index_negative_rejected():
+    """Verify negative integers are rejected for index."""
+    with pytest.raises(ValidationError) as exc:
+        ClickAction(role="button", name="Delete", index=-1)
+    assert "Input should be greater than or equal to 0" in str(exc.value)
+
+    with pytest.raises(ValidationError) as exc2:
+        AssertAction(assertion_type="visible", role="button", name="Delete", index=-5)
+    assert "Input should be greater than or equal to 0" in str(exc2.value)
+
+
+def test_assert_action_has_count_rejects_index():
+    """Verify that has_count strictly rejects index since it operates on the full match set."""
+    with pytest.raises(ValidationError) as exc:
+        AssertAction(assertion_type="has_count", selector=".item", expected_value="3", index=0)
+    assert "operates on the entire locator match set and does not allow an 'index'" in str(exc.value)
+
+    with pytest.raises(ValidationError) as exc2:
+        AssertAction(assertion_type="has_count", selector=".item", expected_value="3", index=1)
+    assert "operates on the entire locator match set and does not allow an 'index'" in str(exc2.value)
+
+
+def test_assert_action_element_types_accept_index():
+    """Verify all element-targeted assertions accept index."""
+    for a_type in ["visible", "hidden", "has_text", "has_value", "enabled", "disabled", "checked", "unchecked"]:
+        kwargs = {"assertion_type": a_type, "role": "button", "name": "Action", "index": 2}
+        if a_type in ("has_text", "has_value"):
+            kwargs["expected_value"] = "Val"
+        act = AssertAction(**kwargs)
+        assert act.index == 2

@@ -15,6 +15,11 @@ class BaseAction(BaseModel):
     placeholder: Optional[str] = Field(None, description="Input placeholder attribute")
     label: Optional[str] = Field(None, description="Associated label text for input controls")
     selector: Optional[str] = Field(None, description="CSS selector or data-testid locator fallback")
+    index: Optional[int] = Field(
+        None,
+        ge=0,
+        description="0-based index to disambiguate when a locator matches multiple elements (e.g. 0 for first, 1 for second).",
+    )
 
 
 class ClickAction(BaseAction):
@@ -81,6 +86,8 @@ class AssertAction(BaseAction):
 
         # 2. has_count requires a non-negative integer expected_value (accepts "0", rejects negative, decimal, non-numeric)
         if self.assertion_type == "has_count":
+            if self.index is not None:
+                raise ValueError("Assertion 'has_count' operates on the entire locator match set and does not allow an 'index'.")
             cleaned = (self.expected_value or "").strip()
             if not cleaned or not cleaned.isdigit():
                 raise ValueError(

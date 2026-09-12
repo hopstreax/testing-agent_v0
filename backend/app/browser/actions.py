@@ -49,8 +49,8 @@ class ActionDispatcher:
         assertions.to_have_count = AsyncMock()
         return MagicMock(return_value=assertions)
 
-    def resolve_locator(self, page: Any, action: AgentAction) -> Tuple[Any, str]:
-        """Resolve element locator using priority ladder:
+    def resolve_base_locator(self, page: Any, action: AgentAction) -> Tuple[Any, str]:
+        """Resolve base element locator using priority ladder:
         1. Role + Name
         2. Text
         3. Placeholder / Label
@@ -80,6 +80,15 @@ class ActionDispatcher:
             return (page.locator(action.selector), f"selector='{action.selector}'")
 
         raise ValueError("Action does not contain any valid locator criteria (role, text, placeholder, label, selector).")
+
+    def resolve_locator(self, page: Any, action: AgentAction) -> Tuple[Any, str]:
+        """Resolve element locator using priority ladder and optional 0-based index."""
+        locator, strat = self.resolve_base_locator(page, action)
+        idx = getattr(action, "index", None)
+        if idx is not None and getattr(action, "assertion_type", None) != "has_count":
+            locator = locator.nth(idx)
+            strat = f"{strat} [index={idx}]"
+        return locator, strat
 
     async def execute(
         self,
@@ -117,6 +126,24 @@ class ActionDispatcher:
                     pattern = re.compile(re.escape(action.expected_value or ""))
                     await expect_target(page).to_have_title(pattern, timeout=timeout)
                 else:
+                    idx = getattr(action, "index", None)
+                    if idx is not None and action.assertion_type != "has_count":
+                        try:
+                            base_loc, _ = self.resolve_base_locator(page, action)
+                            if hasattr(base_loc, "count") and callable(base_loc.count):
+                                import asyncio
+                                cnt_res = base_loc.count()
+                                cnt = await cnt_res if asyncio.iscoroutine(cnt_res) else cnt_res
+                                if isinstance(cnt, int) and cnt > 0 and idx >= cnt:
+                                    valid_range = f"0 through {cnt - 1}" if cnt > 1 else "0"
+                                    raise IndexError(
+                                        f"Locator index {idx} is out of range; locator matched {cnt} elements. Valid indexes are {valid_range}."
+                                    )
+                        except IndexError:
+                            raise
+                        except Exception:
+                            pass
+
                     locator, resolved_by = self.resolve_locator(page, action)
                     if action.assertion_type == "visible":
                         await expect_target(locator).to_be_visible(timeout=timeout)
@@ -170,6 +197,24 @@ class ActionDispatcher:
                 resolved_by = f"page.scroll({action.direction}, {action.amount}px)"
             else:
                 timeout = timeout_ms or self.default_timeout_ms
+                idx = getattr(action, "index", None)
+                if idx is not None:
+                    try:
+                        base_loc, _ = self.resolve_base_locator(page, action)
+                        if hasattr(base_loc, "count") and callable(base_loc.count):
+                            import asyncio
+                            cnt_res = base_loc.count()
+                            cnt = await cnt_res if asyncio.iscoroutine(cnt_res) else cnt_res
+                            if isinstance(cnt, int) and cnt > 0 and idx >= cnt:
+                                valid_range = f"0 through {cnt - 1}" if cnt > 1 else "0"
+                                raise IndexError(
+                                    f"Locator index {idx} is out of range; locator matched {cnt} elements. Valid indexes are {valid_range}."
+                                )
+                    except IndexError:
+                        raise
+                    except Exception:
+                        pass
+
                 locator, resolved_by = self.resolve_locator(page, action)
 
                 if isinstance(action, FillAction):
@@ -195,10 +240,41 @@ class ActionDispatcher:
 
         except Exception as exc:
             duration_ms = int((time.perf_counter() - start_time) * 1000)
+            err_msg = str(exc)
+
+            # Check for strict mode ambiguity
+            m = re.search(r"strict mode violation: .*? resolved to (\d+) elements:", err_msg)
+            if m:
+                count = int(m.group(1))
+                if count == 2:
+                    idx_choices = "0 or 1"
+                else:
+                    idx_choices = ", ".join(str(i) for i in range(count - 1)) + f", or {count - 1}"
+                err_msg = f"Locator matched {count} elements and is ambiguous. Use a more specific locator or provide index={idx_choices}."
+                aka_matches = re.findall(r"(\d+)\)\s+.*?aka\s+(locator\([^\)]+\)|get_by_[^\n\r]+)", str(exc))
+                if aka_matches:
+                    distinguishing = [f"  - index {int(num) - 1}: {h.strip()}" for num, h in aka_matches[:5]]
+                    err_msg += "\nDistinguishing options:\n" + "\n".join(distinguishing)
+
+            # Check for out-of-range index upon timeout
+            idx = getattr(action, "index", None)
+            if idx is not None and getattr(action, "assertion_type", None) != "has_count" and "out of range" not in err_msg:
+                try:
+                    base_loc, _ = self.resolve_base_locator(page, action)
+                    if hasattr(base_loc, "count") and callable(base_loc.count):
+                        import asyncio
+                        cnt_res = base_loc.count()
+                        cnt = await cnt_res if asyncio.iscoroutine(cnt_res) else cnt_res
+                        if isinstance(cnt, int) and idx >= cnt:
+                            valid_range = f"0 through {cnt - 1}" if cnt > 1 else ("0" if cnt == 1 else "none")
+                            err_msg = f"Locator index {idx} is out of range; locator matched {cnt} elements. Valid indexes are {valid_range}."
+                except Exception:
+                    pass
+
             return ActionResult(
                 success=False,
                 action_type=action.action_type,
                 duration_ms=duration_ms,
                 resolved_by=locals().get("resolved_by"),
-                error_message=str(exc),
+                error_message=err_msg,
             )
