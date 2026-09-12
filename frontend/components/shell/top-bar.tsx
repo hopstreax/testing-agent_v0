@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import {
   Search,
   ChevronDown,
@@ -63,8 +64,8 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
 
       {/* Right: + New Test CTA & User Profile Icon */}
       <div className="flex items-center gap-3">
-        <button
-          type="button"
+        <Link
+          href="/"
           className="inline-flex items-center gap-1.5 rounded-md bg-emerald-400 hover:bg-emerald-300 px-3 py-1.5 text-xs font-semibold text-zinc-950 transition-colors cursor-pointer shadow-xs active:scale-[0.98]"
         >
           <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
@@ -72,7 +73,7 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
           <span className="ml-1 hidden font-mono text-[10px] opacity-75 sm:inline">
             ⌘N
           </span>
-        </button>
+        </Link>
 
         <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-950/80 border border-emerald-700/60 text-emerald-400">
           <User className="h-3.5 w-3.5" />

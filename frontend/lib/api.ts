@@ -93,6 +93,16 @@ export interface RunArtifacts {
   report_md: string;
 }
 
+export interface RunSummary {
+  run_id: string;
+  status: "running" | "completed" | "failed" | "error";
+  url: string;
+  goal: string;
+  created_at: string;
+  duration_ms: number | null;
+  success: boolean | null;
+}
+
 export interface RunStatusResponse {
   run_id: string;
   status: "running" | "completed" | "failed" | "error";
@@ -167,6 +177,35 @@ export async function getRun(runId: string): Promise<RunStatusResponse> {
 
   if (!res.ok) {
     let errorDetail = `Failed to fetch run (${res.status})`;
+    try {
+      const errJson = await res.json();
+      if (errJson.detail) {
+        errorDetail = typeof errJson.detail === "string" ? errJson.detail : JSON.stringify(errJson.detail);
+      }
+    } catch {
+      // Use fallback
+    }
+    throw new ApiError(errorDetail, res.status, errorDetail);
+  }
+
+  return res.json();
+}
+
+/**
+ * Retrieve list of recent test runs.
+ * GET /api/runs
+ */
+export async function listRuns(): Promise<RunSummary[]> {
+  const res = await fetch("/api/runs", {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+    },
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    let errorDetail = `Failed to fetch runs (${res.status})`;
     try {
       const errJson = await res.json();
       if (errJson.detail) {

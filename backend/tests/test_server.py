@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from app.cli import parse_args
 from app.models.actions import StepRecord
 from app.models.agent import AgentRunResult, FailureDiagnosis
-from app.server import RunManager, create_app
+from app.server import RunManager, RunStatusResponse, create_app
 
 
 @pytest.fixture
@@ -402,6 +402,74 @@ def test_list_runs_from_memory_and_disk(
     assert hist["status"] == "completed"
     assert hist["url"] == "https://example.com/disk"
     assert hist["success"] is True
+
+
+def test_list_runs_chronological_ordering_newest_first(
+    temp_artifacts_dir: Path,
+) -> None:
+    """Test runs are sorted newest-first using canonical run_id across memory and disk."""
+    manager = RunManager(artifacts_base_dir=temp_artifacts_dir)
+    app = create_app(run_manager=manager)
+    client = TestClient(app)
+
+    # 1. Historical run 1 on disk (Sep 11 morning)
+    disk_run_1 = temp_artifacts_dir / "20260911_100000_aaaa1111"
+    disk_run_1.mkdir(parents=True, exist_ok=True)
+    (disk_run_1 / "report.json").write_text(
+        json.dumps({
+            "run_id": "20260911_100000_aaaa1111",
+            "target_url": "https://example.com/old",
+            "goal": "Old test",
+            "success": True,
+            "duration_ms": 1000,
+        }),
+        encoding="utf-8",
+    )
+
+    # 2. Historical run 2 on disk (Sep 11 afternoon)
+    disk_run_2 = temp_artifacts_dir / "20260911_150000_bbbb2222"
+    disk_run_2.mkdir(parents=True, exist_ok=True)
+    (disk_run_2 / "report.json").write_text(
+        json.dumps({
+            "run_id": "20260911_150000_bbbb2222",
+            "target_url": "https://example.com/mid",
+            "goal": "Mid test",
+            "success": False,
+            "duration_ms": 2000,
+        }),
+        encoding="utf-8",
+    )
+
+    # 3. In-memory run (Sep 12) with ISO created_at
+    manager._runs["20260912_110000_cccc3333"] = RunStatusResponse(
+        run_id="20260912_110000_cccc3333",
+        status="running",
+        url="https://example.com/newest",
+        goal="Newest test",
+        browser="local",
+        headless=True,
+        created_at="2026-09-12T05:30:00.000000+00:00",
+    )
+
+    res = client.get("/api/runs")
+    assert res.status_code == 200
+    runs = res.json()
+    assert len(runs) == 3
+
+    # Must be ordered newest-first by run_id
+    run_ids = [r["run_id"] for r in runs]
+    assert run_ids == [
+        "20260912_110000_cccc3333",
+        "20260911_150000_bbbb2222",
+        "20260911_100000_aaaa1111",
+    ]
+    # In-memory run maintains status and created_at
+    assert runs[0]["status"] == "running"
+    assert runs[0]["created_at"] == "2026-09-12T05:30:00.000000+00:00"
+    # Disk runs maintain status
+    assert runs[1]["status"] == "failed"
+    assert runs[2]["status"] == "completed"
+
 
 
 # ---------------------------------------------------------------------------

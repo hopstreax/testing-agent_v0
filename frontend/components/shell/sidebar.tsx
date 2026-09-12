@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   PlayCircle,
   Clock,
@@ -20,6 +21,10 @@ interface SidebarProps {
 }
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
+  const pathname = usePathname();
+  const isNewTest = pathname === "/";
+  const isRuns = pathname === "/runs" || pathname.startsWith("/runs/");
+
   return (
     <>
       {/* Mobile Backdrop */}
@@ -88,13 +93,25 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 Test Suite
               </div>
               <nav className="flex flex-col gap-1">
-                {/* Active: New Test */}
+                {/* New Test */}
                 <Link
                   href="/"
-                  className="flex items-center justify-between rounded-md bg-[#161a1e] border border-zinc-800/80 px-2.5 py-1.5 text-xs font-medium text-white transition-colors"
+                  className={cn(
+                    "flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
+                    isNewTest
+                      ? "bg-[#161a1e] border border-zinc-800/80 text-white"
+                      : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40 border border-transparent"
+                  )}
                 >
                   <div className="flex items-center gap-2.5">
-                    <PlayCircle className="h-4 w-4 text-emerald-400 fill-emerald-950/40" />
+                    <PlayCircle
+                      className={cn(
+                        "h-4 w-4",
+                        isNewTest
+                          ? "text-emerald-400 fill-emerald-950/40"
+                          : "text-zinc-500"
+                      )}
+                    />
                     <span>New Test</span>
                   </div>
                   <kbd className="font-mono text-[10px] text-zinc-500 bg-zinc-800/60 px-1 py-0.5 rounded">
@@ -105,10 +122,20 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 {/* Runs */}
                 <Link
                   href="/runs"
-                  className="flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40 transition-colors w-full"
+                  className={cn(
+                    "flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors w-full",
+                    isRuns
+                      ? "bg-[#161a1e] border border-zinc-800/80 text-white"
+                      : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40 border border-transparent"
+                  )}
                 >
                   <div className="flex items-center gap-2.5">
-                    <Clock className="h-4 w-4 text-zinc-500" />
+                    <Clock
+                      className={cn(
+                        "h-4 w-4",
+                        isRuns ? "text-emerald-400" : "text-zinc-500"
+                      )}
+                    />
                     <span>Runs</span>
                   </div>
                 </Link>

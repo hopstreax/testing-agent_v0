@@ -289,8 +289,8 @@ class RunManager:
                         except Exception:
                             continue
 
-        # Sort newest first
-        summaries.sort(key=lambda s: s.created_at or s.run_id, reverse=True)
+        # Sort newest first using canonical run_id timestamp
+        summaries.sort(key=lambda s: s.run_id, reverse=True)
         return summaries
 
 
