@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Link as LinkIcon,
   Sparkles,
@@ -9,22 +9,80 @@ import {
   Play,
   Loader2,
   AlertCircle,
+  Copy,
 } from "lucide-react";
 import { QuickPrompts } from "./quick-prompts";
 import { AdvancedSettings } from "./advanced-settings";
-import { launchRun } from "@/lib/api";
+import { launchRun, getRun } from "@/lib/api";
+
+const DEFAULT_URL = "https://demo.vercel.store/products/archive";
+const DEFAULT_PROMPT =
+  'Search for "Technical Shell Jacket", apply the sizing filter "XL", add product to cart, proceed to checkout page, and ensure the price calculation includes zero shipping fees.';
+const DEFAULT_HEADLESS = true;
+const DEFAULT_MAX_STEPS = 15;
+const DEFAULT_STORAGE_STATE = "";
 
 export function TestLaunchForm() {
   const router = useRouter();
-  const [url, setUrl] = useState("https://demo.vercel.store/products/archive");
-  const [prompt, setPrompt] = useState(
-    'Search for "Technical Shell Jacket", apply the sizing filter "XL", add product to cart, proceed to checkout page, and ensure the price calculation includes zero shipping fees.'
-  );
-  const [headless, setHeadless] = useState(true);
-  const [maxSteps, setMaxSteps] = useState(15);
-  const [storageStatePath, setStorageStatePath] = useState("");
+  const searchParams = useSearchParams();
+  const cloneRunId = searchParams.get("clone");
+
+  const [url, setUrl] = useState(DEFAULT_URL);
+  const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
+  const [headless, setHeadless] = useState(DEFAULT_HEADLESS);
+  const [maxSteps, setMaxSteps] = useState(DEFAULT_MAX_STEPS);
+  const [storageStatePath, setStorageStatePath] = useState(DEFAULT_STORAGE_STATE);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [clonedRunId, setClonedRunId] = useState<string | null>(null);
+  const [isLoadingClone, setIsLoadingClone] = useState(false);
+
+  useEffect(() => {
+    if (!cloneRunId) return;
+
+    let isMounted = true;
+
+    async function loadClone(id: string) {
+      setIsLoadingClone(true);
+      try {
+        const run = await getRun(id);
+        if (!isMounted) return;
+
+        if (run.url) setUrl(run.url);
+        if (run.goal) setPrompt(run.goal);
+        if (typeof run.headless === "boolean") setHeadless(run.headless);
+        if (typeof run.max_steps === "number") setMaxSteps(run.max_steps);
+        if (run.storage_state_path) setStorageStatePath(run.storage_state_path);
+        else setStorageStatePath("");
+
+        setClonedRunId(run.run_id);
+        setError(null);
+      } catch (err: unknown) {
+        // Handle invalid clone ID gracefully without crashing the form
+        if (!isMounted) return;
+        console.warn("Could not prefill from clone ID:", err);
+      } finally {
+        if (isMounted) setIsLoadingClone(false);
+      }
+    }
+
+    void loadClone(cloneRunId);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [cloneRunId]);
+
+  const handleReset = () => {
+    setUrl(DEFAULT_URL);
+    setPrompt(DEFAULT_PROMPT);
+    setHeadless(DEFAULT_HEADLESS);
+    setMaxSteps(DEFAULT_MAX_STEPS);
+    setStorageStatePath(DEFAULT_STORAGE_STATE);
+    setClonedRunId(null);
+    setError(null);
+    router.replace("/");
+  };
 
   const handleSelectPrompt = (promptText: string) => {
     setPrompt(promptText);
@@ -98,6 +156,36 @@ export function TestLaunchForm() {
               <span className="font-semibold text-red-200">Launch Error: </span>
               <span>{error}</span>
             </div>
+          </div>
+        )}
+
+        {/* Clone Context Indicator */}
+        {isLoadingClone && (
+          <div className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-xs text-zinc-400 animate-in fade-in-50">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-400" />
+            <span>Loading cloned run configuration...</span>
+          </div>
+        )}
+
+        {clonedRunId && !isLoadingClone && (
+          <div className="flex items-center justify-between rounded-lg border border-emerald-900/60 bg-emerald-950/30 px-3 py-2 text-xs text-zinc-300 animate-in fade-in-50">
+            <div className="flex items-center gap-2 min-w-0">
+              <Copy className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+              <span className="truncate">
+                Cloned from run{" "}
+                <span className="font-mono text-emerald-300 font-medium">
+                  {clonedRunId}
+                </span>
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleReset}
+              id="reset-clone-btn"
+              className="ml-3 shrink-0 text-[11px] font-medium text-zinc-400 hover:text-white underline cursor-pointer transition-colors"
+            >
+              Reset
+            </button>
           </div>
         )}
 

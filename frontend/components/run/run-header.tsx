@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
+  Copy,
 } from "lucide-react";
 import { RunStatusResponse } from "@/lib/api";
 
@@ -58,13 +59,27 @@ export function RunHeader({ run, elapsedMs }: RunHeaderProps) {
     <div className="flex flex-col gap-5 border-b border-[#1f2428] pb-6">
       {/* Top Navigation Row: Back Link & Quick Actions */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          <span>New Test</span>
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            <span>New Test</span>
+          </Link>
+
+          <span className="text-zinc-700 select-none">•</span>
+
+          <Link
+            href={`/?clone=${run.run_id}`}
+            id="clone-and-edit-btn"
+            className="inline-flex items-center gap-1.5 rounded-md border border-[#22272b] bg-[#121518] px-2.5 py-1 text-xs font-medium text-zinc-200 hover:border-emerald-600/60 hover:bg-[#161a1e] hover:text-emerald-300 transition-colors shadow-xs"
+            title="Clone this run configuration to create a new test"
+          >
+            <Copy className="h-3.5 w-3.5 text-emerald-400" />
+            <span>Clone &amp; Edit</span>
+          </Link>
+        </div>
 
         {/* Artifact Links (Available when artifacts exist) */}
         {run.artifacts && (

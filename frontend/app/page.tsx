@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, Suspense } from "react";
 import { Sidebar } from "@/components/shell/sidebar";
 import { TopBar } from "@/components/shell/top-bar";
 import { TestLaunchForm } from "@/components/test/test-launch-form";
@@ -47,7 +47,9 @@ export default function HomePage() {
             </div>
 
             {/* Primary Test Launch Form */}
-            <TestLaunchForm />
+            <Suspense fallback={<div className="h-64 animate-pulse rounded-xl bg-[#121518] border border-[#22272b]" />}>
+              <TestLaunchForm />
+            </Suspense>
           </div>
         </main>
       </div>

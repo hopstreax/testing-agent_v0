@@ -133,6 +133,8 @@ class RunStatusResponse(BaseModel):
     result: Optional[Dict[str, Any]] = None
     error: Optional[str] = None
     artifacts: Optional[Dict[str, str]] = None
+    max_steps: int = 15
+    storage_state_path: Optional[str] = None
 
 
 class RunSummary(BaseModel):
@@ -180,6 +182,8 @@ class RunManager:
             browser=request.browser,
             headless=request.headless,
             created_at=now_str,
+            max_steps=request.max_steps,
+            storage_state_path=request.storage_state_path,
         )
         self._runs[run_id] = run_state
 

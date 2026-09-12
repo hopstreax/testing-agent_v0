@@ -116,6 +116,8 @@ export interface RunStatusResponse {
   result: RunResult | null;
   error: string | null;
   artifacts: RunArtifacts | null;
+  max_steps?: number;
+  storage_state_path?: string;
 }
 
 export class ApiError extends Error {

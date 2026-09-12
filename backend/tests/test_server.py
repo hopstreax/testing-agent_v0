@@ -1,5 +1,4 @@
-"""Unit and integration tests for FastAPI dashboard server and RunManager."""
-
+import asyncio
 import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -9,7 +8,7 @@ from fastapi.testclient import TestClient
 from app.cli import parse_args
 from app.models.actions import StepRecord
 from app.models.agent import AgentRunResult, FailureDiagnosis
-from app.server import RunManager, RunStatusResponse, create_app
+from app.server import RunManager, RunRequest, RunStatusResponse, create_app
 
 
 @pytest.fixture
@@ -621,3 +620,67 @@ def test_post_runs_null_storage_state_allowed(client: TestClient) -> None:
             "storage_state_path": None,
         })
         assert res.status_code == 202
+
+
+# =============================================================================
+# Milestone 6.4: Clone & Edit Run Configuration Tests
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_run_status_response_preserves_clone_configuration(tmp_path: Path) -> None:
+    """Verify active in-memory runs retain max_steps and storage_state_path for clone workflows."""
+    manager = RunManager(artifacts_base_dir=tmp_path)
+    auth_file = tmp_path / "valid_auth.json"
+    auth_file.write_text(json.dumps({"cookies": [{"name": "sid", "value": "xyz"}]}), encoding="utf-8")
+
+    req = RunRequest(
+        url="https://example.com/app",
+        goal="Test clone config",
+        browser="local",
+        headless=False,
+        max_steps=25,
+        storage_state_path=str(auth_file),
+    )
+
+    with patch.object(manager, "_execute_run", new_callable=AsyncMock):
+        status = manager.start_run(req)
+
+    assert status.url == "https://example.com/app"
+    assert status.goal == "Test clone config"
+    assert status.headless is False
+    assert status.max_steps == 25
+    assert status.storage_state_path == str(auth_file.resolve())
+
+    # Ensure get_run returns the same configuration
+    fetched = manager.get_run(status.run_id)
+    assert fetched is not None
+    assert fetched.max_steps == 25
+    assert fetched.storage_state_path == str(auth_file.resolve())
+    # Crucially, credentials/cookies must not be exposed in the response
+    data_dict = fetched.model_dump()
+    assert "cookies" not in data_dict
+    assert "origins" not in data_dict
+
+
+def test_historical_disk_run_clone_configuration_fallback(tmp_path: Path) -> None:
+    """Verify historical disk-backed runs safely fallback to max_steps=15 and storage_state_path=None."""
+    manager = RunManager(artifacts_base_dir=tmp_path)
+    run_dir = tmp_path / "20260912_120000_disktest"
+    run_dir.mkdir(parents=True)
+
+    report_data = {
+        "run_id": "20260912_120000_disktest",
+        "target_url": "https://example.com/old",
+        "goal": "Historical test goal",
+        "success": True,
+        "duration_ms": 1200,
+        "authenticated": True,
+    }
+    (run_dir / "report.json").write_text(json.dumps(report_data), encoding="utf-8")
+
+    fetched = manager.get_run("20260912_120000_disktest")
+    assert fetched is not None
+    assert fetched.url == "https://example.com/old"
+    assert fetched.goal == "Historical test goal"
+    assert fetched.max_steps == 15
+    assert fetched.storage_state_path is None
