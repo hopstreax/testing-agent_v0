@@ -3,6 +3,13 @@
  * All requests use relative /api paths which are proxied via Next.js rewrites.
  */
 
+export interface ProviderMetadata {
+  id: "auto" | "gemini" | "groq" | "ollama" | string;
+  label: string;
+  default_model: string | null;
+  models: string[];
+}
+
 export interface RunRequest {
   url: string;
   goal: string;
@@ -10,6 +17,8 @@ export interface RunRequest {
   headless: boolean;
   max_steps: number;
   storage_state_path?: string;
+  provider?: "auto" | "gemini" | "groq" | "ollama";
+  model?: string;
 }
 
 export interface RunLaunchResponse {
@@ -87,6 +96,8 @@ export interface RunResult {
   steps: StepTraceRecord[];
   diagnostics?: BrowserDiagnostics;
   screenshots: string[];
+  llm_provider?: string;
+  llm_model?: string | null;
 }
 
 export interface RunArtifacts {
@@ -118,6 +129,8 @@ export interface RunStatusResponse {
   artifacts: RunArtifacts | null;
   max_steps?: number;
   storage_state_path?: string;
+  provider?: string;
+  model?: string | null;
 }
 
 export class ApiError extends Error {
@@ -213,6 +226,38 @@ export async function listRuns(): Promise<RunSummary[]> {
       const errJson = await res.json();
       if (errJson.detail) {
         errorDetail = typeof errJson.detail === "string" ? errJson.detail : JSON.stringify(errJson.detail);
+      }
+    } catch {
+      // Use fallback
+    }
+    throw new ApiError(errorDetail, res.status, errorDetail);
+  }
+
+  return res.json();
+}
+
+/**
+ * Retrieve list of supported LLM providers and curated models.
+ * GET /api/providers
+ */
+export async function getProviders(): Promise<ProviderMetadata[]> {
+  const res = await fetch("/api/providers", {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+    },
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    let errorDetail = `Failed to fetch providers (${res.status})`;
+    try {
+      const errJson = await res.json();
+      if (errJson.detail) {
+        errorDetail =
+          typeof errJson.detail === "string"
+            ? errJson.detail
+            : JSON.stringify(errJson.detail);
       }
     } catch {
       // Use fallback

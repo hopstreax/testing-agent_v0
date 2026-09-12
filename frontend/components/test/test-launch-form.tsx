@@ -21,6 +21,8 @@ const DEFAULT_PROMPT =
 const DEFAULT_HEADLESS = true;
 const DEFAULT_MAX_STEPS = 15;
 const DEFAULT_STORAGE_STATE = "";
+const DEFAULT_PROVIDER: "auto" | "gemini" | "groq" | "ollama" = "auto";
+const DEFAULT_MODEL = "";
 
 export function TestLaunchForm() {
   const router = useRouter();
@@ -32,6 +34,8 @@ export function TestLaunchForm() {
   const [headless, setHeadless] = useState(DEFAULT_HEADLESS);
   const [maxSteps, setMaxSteps] = useState(DEFAULT_MAX_STEPS);
   const [storageStatePath, setStorageStatePath] = useState(DEFAULT_STORAGE_STATE);
+  const [provider, setProvider] = useState<"auto" | "gemini" | "groq" | "ollama">(DEFAULT_PROVIDER);
+  const [model, setModel] = useState(DEFAULT_MODEL);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [clonedRunId, setClonedRunId] = useState<string | null>(null);
@@ -54,6 +58,22 @@ export function TestLaunchForm() {
         if (typeof run.max_steps === "number") setMaxSteps(run.max_steps);
         if (run.storage_state_path) setStorageStatePath(run.storage_state_path);
         else setStorageStatePath("");
+
+        if (run.provider && ["auto", "gemini", "groq", "ollama"].includes(run.provider)) {
+          setProvider(run.provider as "auto" | "gemini" | "groq" | "ollama");
+        } else if (run.result?.llm_provider && ["auto", "gemini", "groq", "ollama"].includes(run.result.llm_provider)) {
+          setProvider(run.result.llm_provider as "auto" | "gemini" | "groq" | "ollama");
+        } else {
+          setProvider(DEFAULT_PROVIDER);
+        }
+
+        if (typeof run.model === "string") {
+          setModel(run.model);
+        } else if (typeof run.result?.llm_model === "string") {
+          setModel(run.result.llm_model);
+        } else {
+          setModel(DEFAULT_MODEL);
+        }
 
         setClonedRunId(run.run_id);
         setError(null);
@@ -79,6 +99,8 @@ export function TestLaunchForm() {
     setHeadless(DEFAULT_HEADLESS);
     setMaxSteps(DEFAULT_MAX_STEPS);
     setStorageStatePath(DEFAULT_STORAGE_STATE);
+    setProvider(DEFAULT_PROVIDER);
+    setModel(DEFAULT_MODEL);
     setClonedRunId(null);
     setError(null);
     router.replace("/");
@@ -128,6 +150,8 @@ export function TestLaunchForm() {
         headless,
         max_steps: maxSteps,
         storage_state_path: storageStatePath.trim() || undefined,
+        provider,
+        model: model.trim() || undefined,
       });
 
       // Immediate transition to the real run detail page
@@ -276,9 +300,13 @@ export function TestLaunchForm() {
           headless={headless}
           maxSteps={maxSteps}
           storageStatePath={storageStatePath}
+          provider={provider}
+          model={model}
           onHeadlessChange={setHeadless}
           onMaxStepsChange={setMaxSteps}
           onStorageStatePathChange={setStorageStatePath}
+          onProviderChange={setProvider}
+          onModelChange={setModel}
         />
 
         {/* Section 5: FORM FOOTER & RUN BUTTON */}

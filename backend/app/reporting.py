@@ -170,6 +170,8 @@ def build_json_report(run_result: AgentRunResult, run_dir: Path) -> Dict[str, An
         "screenshots": collected_screenshots,
         "authenticated": getattr(run_result, "authenticated", False),
         "storage_state": bool(getattr(run_result, "authenticated", False)),
+        "llm_provider": getattr(run_result, "llm_provider", None) or "auto",
+        "llm_model": getattr(run_result, "llm_model", None),
     }
 
 
@@ -180,6 +182,9 @@ def build_markdown_report(run_result: AgentRunResult, run_dir: Path) -> str:
     status_str = "**PASSED**" if run_result.success else "**FAILED**"
     duration_s = f"{run_result.duration_ms / 1000:.2f}s"
     is_auth = getattr(run_result, "authenticated", False)
+    provider_name = getattr(run_result, "llm_provider", None) or "Auto"
+    model_name = getattr(run_result, "llm_model", None)
+    ai_provider_str = f"{provider_name} (`{model_name}`)" if model_name else provider_name
 
     lines: List[str] = [
         f"# Test Execution Report: `{run_id}`\n",
@@ -187,6 +192,7 @@ def build_markdown_report(run_result: AgentRunResult, run_dir: Path) -> str:
         f"- **Status**: {status_str}",
         f"- **Goal**: {run_result.goal or 'N/A'}",
         f"- **Target URL**: {run_result.target_url or 'N/A'}",
+        f"- **AI Provider**: {ai_provider_str}",
         f"- **Termination Reason**: `{run_result.termination_reason}`",
         f"- **Steps Executed**: {run_result.steps_executed}",
         f"- **Duration**: {run_result.duration_ms} ms ({duration_s})",

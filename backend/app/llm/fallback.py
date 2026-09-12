@@ -1,6 +1,6 @@
 """Composite LLM provider implementing sequential failover across provider tiers."""
 
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 from app.llm.base import BaseLLMProvider
 from app.llm.context import StepPromptContext
 from app.llm.errors import (
@@ -19,6 +19,11 @@ class FallbackLLMProvider(BaseLLMProvider):
         if not providers:
             raise ValueError("FallbackLLMProvider requires at least one provider.")
         self.providers = list(providers)
+        self.last_active_provider: Optional[BaseLLMProvider] = None
+
+    @property
+    def active_provider(self) -> Optional[BaseLLMProvider]:
+        return self.last_active_provider
 
     @property
     def provider_name(self) -> str:
@@ -60,7 +65,9 @@ class FallbackLLMProvider(BaseLLMProvider):
 
             # Attempt step generation
             try:
-                return await provider.generate_step(context, timeout_s=timeout_s)
+                step_decision = await provider.generate_step(context, timeout_s=timeout_s)
+                self.last_active_provider = provider
+                return step_decision
             except (
                 LLMRateLimitError,
                 LLMProviderUnavailableError,

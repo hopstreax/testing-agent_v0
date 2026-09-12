@@ -15,6 +15,7 @@ from fastapi import FastAPI, HTTPException, status
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, Field, HttpUrl, field_validator
 
+from app.llm.metadata import ProviderMetadata, get_providers_metadata
 from app.models.agent import AgentRunResult
 from app.runner import TestRunner, resolve_llm_provider
 
@@ -45,6 +46,8 @@ class RunRequest(BaseModel):
     headless: bool = Field(True, description="Run browser in headless mode")
     max_steps: int = Field(15, ge=1, le=50, description="Maximum agent reasoning steps")
     storage_state_path: Optional[str] = Field(None, description="Path to local Playwright storage_state.json")
+    provider: Literal["auto", "gemini", "groq", "ollama"] = Field("auto", description="LLM reasoning provider")
+    model: Optional[str] = Field(None, description="Optional LLM model override")
 
     @field_validator("url")
     @classmethod
@@ -135,6 +138,8 @@ class RunStatusResponse(BaseModel):
     artifacts: Optional[Dict[str, str]] = None
     max_steps: int = 15
     storage_state_path: Optional[str] = None
+    provider: Optional[str] = "auto"
+    model: Optional[str] = None
 
 
 class RunSummary(BaseModel):
@@ -174,6 +179,13 @@ class RunManager:
         run_id = self._generate_run_id()
         now_str = datetime.now(timezone.utc).isoformat()
 
+        # Resolve provider for the run unless an explicit provider was injected
+        resolved_llm = llm_provider
+        if resolved_llm is None:
+            p_name = None if request.provider == "auto" else request.provider
+            clean_model = request.model.strip() if request.model else None
+            resolved_llm = resolve_llm_provider(provider_name=p_name, model=clean_model)
+
         run_state = RunStatusResponse(
             run_id=run_id,
             status="running",
@@ -184,13 +196,15 @@ class RunManager:
             created_at=now_str,
             max_steps=request.max_steps,
             storage_state_path=request.storage_state_path,
+            provider=request.provider,
+            model=request.model,
         )
         self._runs[run_id] = run_state
 
         # Instantiate runner using requested configuration
         runner = TestRunner(
             artifacts_base_dir=self.artifacts_base_dir,
-            llm_provider=llm_provider,
+            llm_provider=resolved_llm,
             browser_type=request.browser,
             headless=request.headless,
             max_steps=request.max_steps,
@@ -239,6 +253,10 @@ class RunManager:
             self._runs[run_id].duration_ms = agent_result.duration_ms
             self._runs[run_id].result = result_data
             self._runs[run_id].artifacts = artifacts_dict
+            if agent_result.llm_provider:
+                self._runs[run_id].provider = agent_result.llm_provider
+            if agent_result.llm_model:
+                self._runs[run_id].model = agent_result.llm_model
 
         except Exception as exc:
             self._runs[run_id].status = "error"
@@ -279,6 +297,8 @@ class RunManager:
                         "report_json": f"/api/runs/{run_id}/artifacts/report.json",
                         "report_md": f"/api/runs/{run_id}/artifacts/report.md",
                     },
+                    provider=data.get("llm_provider", "auto"),
+                    model=data.get("llm_model", None),
                 )
                 self._runs[run_id] = run_state
                 return run_state
@@ -424,6 +444,14 @@ def create_app(
     async def list_runs() -> List[RunSummary]:
         """List recent test runs from memory and disk."""
         return manager.list_runs()
+
+    # -------------------------------------------------------------------------
+    # Route: List Providers (GET /api/providers)
+    # -------------------------------------------------------------------------
+    @app.get("/api/providers", response_model=List[ProviderMetadata])
+    async def list_providers() -> List[ProviderMetadata]:
+        """Return static metadata describing supported LLM providers and curated models."""
+        return get_providers_metadata()
 
     # -------------------------------------------------------------------------
     # Route: Safe Artifact Serving (GET /api/runs/{run_id}/artifacts/{file_path:path})

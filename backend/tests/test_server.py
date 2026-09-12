@@ -684,3 +684,154 @@ def test_historical_disk_run_clone_configuration_fallback(tmp_path: Path) -> Non
     assert fetched.goal == "Historical test goal"
     assert fetched.max_steps == 15
     assert fetched.storage_state_path is None
+    assert fetched.provider == "auto"
+    assert fetched.model is None
+
+
+# ---------------------------------------------------------------------------
+# M6.6: Provider Metadata & Provider/Model Selection Tests
+# ---------------------------------------------------------------------------
+
+def test_get_providers_metadata_endpoint(client: TestClient) -> None:
+    """Verify GET /api/providers returns static curated provider metadata without secrets."""
+    res = client.get("/api/providers")
+    assert res.status_code == 200
+    providers = res.json()
+    assert isinstance(providers, list)
+    assert len(providers) == 4
+
+    provider_ids = [p["id"] for p in providers]
+    assert provider_ids == ["auto", "gemini", "groq", "ollama"]
+    # Verify Mock is NOT exposed
+    assert "mock" not in provider_ids
+
+    # Verify Gemini metadata
+    gemini = next(p for p in providers if p["id"] == "gemini")
+    assert gemini["label"] == "Google Gemini"
+    assert gemini["default_model"] == "gemini-3.6-flash"
+    assert "gemini-3.6-flash" in gemini["models"]
+
+    # Verify Groq metadata
+    groq = next(p for p in providers if p["id"] == "groq")
+    assert groq["label"] == "Groq"
+    assert groq["default_model"] == "openai/gpt-oss-120b"
+    assert groq["models"] == ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.6-27b"]
+    assert "llama-3.3-70b-versatile" not in groq["models"]
+    assert "llama-3.1-8b-instant" not in groq["models"]
+
+    # Verify Ollama metadata
+    ollama = next(p for p in providers if p["id"] == "ollama")
+    assert ollama["label"] == "Ollama"
+    assert ollama["default_model"] == "qwen2.5-coder:3b"
+
+    # Verify no secret fields exist in the response
+    for p in providers:
+        assert "api_key" not in p
+        assert "key" not in p
+        assert "secret" not in p
+        assert "token" not in p
+
+
+def test_post_runs_provider_defaults_to_auto(client: TestClient) -> None:
+    """When provider and model are omitted in POST /api/runs, defaults to 'auto' and None."""
+    res = client.post(
+        "/api/runs",
+        json={
+            "url": "https://example.com",
+            "goal": "Verify default provider",
+        },
+    )
+    assert res.status_code == 202
+    run_id = res.json()["run_id"]
+
+    status_res = client.get(f"/api/runs/{run_id}")
+    assert status_res.status_code == 200
+    status_data = status_res.json()
+    assert status_data["provider"] == "auto"
+    assert status_data["model"] is None
+
+
+def test_post_runs_explicit_provider_and_model(client: TestClient) -> None:
+    """Verify POST /api/runs accepts explicit provider and custom model."""
+    res = client.post(
+        "/api/runs",
+        json={
+            "url": "https://example.com",
+            "goal": "Verify explicit groq provider",
+            "provider": "groq",
+            "model": "openai/gpt-oss-120b",
+        },
+    )
+    assert res.status_code == 202
+    run_id = res.json()["run_id"]
+
+    status_res = client.get(f"/api/runs/{run_id}")
+    assert status_res.status_code == 200
+    status_data = status_res.json()
+    assert status_data["provider"] == "groq"
+    assert status_data["model"] == "openai/gpt-oss-120b"
+
+
+def test_post_runs_invalid_provider_rejected(client: TestClient) -> None:
+    """Verify POST /api/runs rejects unauthorized or unsupported providers."""
+    for invalid in ["openai", "claude", "mock", "unknown"]:
+        res = client.post(
+            "/api/runs",
+            json={
+                "url": "https://example.com",
+                "goal": "Test invalid provider",
+                "provider": invalid,
+            },
+        )
+        assert res.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_manager_start_run_resolves_explicit_provider_and_model(tmp_path: Path) -> None:
+    """Verify RunManager resolves explicit provider and model and passes to TestRunner."""
+    from app.llm.groq import GroqLLMProvider, DEFAULT_GROQ_MODEL
+
+    manager = RunManager(artifacts_base_dir=tmp_path)
+    req = RunRequest(
+        url="https://example.com",
+        goal="Test provider resolution in manager",
+        provider="groq",
+        model="openai/gpt-oss-20b",
+    )
+
+    with patch("app.server.TestRunner") as mock_runner_cls, patch.object(
+        manager, "_execute_run", new_callable=AsyncMock
+    ):
+        status = manager.start_run(req)
+
+        assert status.provider == "groq"
+        assert status.model == "openai/gpt-oss-20b"
+
+        # Check TestRunner constructor received resolved Groq provider
+        mock_runner_cls.assert_called_once()
+        call_kwargs = mock_runner_cls.call_args.kwargs
+        llm = call_kwargs["llm_provider"]
+        assert isinstance(llm, GroqLLMProvider)
+        assert llm.model == "openai/gpt-oss-20b"
+
+
+def test_groq_default_model_is_current() -> None:
+    """Verify Groq default model is current and deprecated models are not used."""
+    from app.llm.groq import DEFAULT_GROQ_MODEL, GroqLLMProvider
+    from app.llm.metadata import get_providers_metadata
+
+    assert DEFAULT_GROQ_MODEL == "openai/gpt-oss-120b"
+    assert DEFAULT_GROQ_MODEL != "llama-3.3-70b-versatile"
+
+    provider = GroqLLMProvider(api_key="test", model=None)
+    # If GROQ_MODEL env var is set to default or not set, provider model must not be deprecated
+    assert provider.model != "llama-3.3-70b-versatile"
+    assert provider.model != "llama-3.1-8b-instant"
+
+    metadata = next(p for p in get_providers_metadata() if p.id == "groq")
+    assert metadata.default_model == "openai/gpt-oss-120b"
+    assert "llama-3.3-70b-versatile" not in metadata.models
+    assert "llama-3.1-8b-instant" not in metadata.models
+    assert "openai/gpt-oss-120b" in metadata.models
+    assert "openai/gpt-oss-20b" in metadata.models
+    assert "qwen/qwen3.6-27b" in metadata.models

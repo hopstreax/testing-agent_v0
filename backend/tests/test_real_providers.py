@@ -250,12 +250,12 @@ async def test_groq_generate_step_success(sample_context: StepPromptContext) -> 
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.headers.get("Authorization") == "Bearer test-groq-key"
         body = json.loads(request.content.decode("utf-8"))
-        assert body["model"] == "llama-3.3-70b-versatile"
+        assert body["model"] == "openai/gpt-oss-120b"
         assert body["response_format"] == {"type": "json_object"}
         return httpx.Response(200, json=mock_response)
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-    provider = GroqLLMProvider(api_key="test-groq-key", model="llama-3.3-70b-versatile", client=client)
+    provider = GroqLLMProvider(api_key="test-groq-key", model="openai/gpt-oss-120b", client=client)
     decision = await provider.generate_step(sample_context)
 
     assert decision.action.action_type == "click"

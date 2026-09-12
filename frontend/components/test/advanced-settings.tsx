@@ -1,18 +1,45 @@
 "use client";
 
-import React, { useState } from "react";
-import { SlidersHorizontal, ChevronDown, Monitor, KeyRound } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { SlidersHorizontal, ChevronDown, Monitor, KeyRound, Cpu } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ProviderMetadata, getProviders } from "@/lib/api";
+
+const FALLBACK_PROVIDERS: ProviderMetadata[] = [
+  { id: "auto", label: "Auto (Fallback)", default_model: null, models: [] },
+  {
+    id: "gemini",
+    label: "Google Gemini",
+    default_model: "gemini-3.6-flash",
+    models: ["gemini-3.6-flash", "gemini-2.5-flash", "gemini-2.5-pro"],
+  },
+  {
+    id: "groq",
+    label: "Groq",
+    default_model: "openai/gpt-oss-120b",
+    models: ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.6-27b"],
+  },
+  {
+    id: "ollama",
+    label: "Ollama",
+    default_model: "qwen2.5-coder:3b",
+    models: ["qwen2.5-coder:3b", "llama3.2:3b"],
+  },
+];
 
 interface AdvancedSettingsProps {
   browser?: string;
   headless: boolean;
   maxSteps: number;
   storageStatePath?: string;
+  provider: "auto" | "gemini" | "groq" | "ollama";
+  model: string;
   onBrowserChange?: (browser: string) => void;
   onHeadlessChange: (headless: boolean) => void;
   onMaxStepsChange: (maxSteps: number) => void;
   onStorageStatePathChange?: (path: string) => void;
+  onProviderChange: (provider: "auto" | "gemini" | "groq" | "ollama") => void;
+  onModelChange: (model: string) => void;
 }
 
 export function AdvancedSettings({
@@ -20,14 +47,68 @@ export function AdvancedSettings({
   headless = true,
   maxSteps = 15,
   storageStatePath = "",
+  provider = "auto",
+  model = "",
   onHeadlessChange,
   onMaxStepsChange,
   onStorageStatePathChange,
+  onProviderChange,
+  onModelChange,
 }: AdvancedSettingsProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [providersList, setProvidersList] = useState<ProviderMetadata[]>(FALLBACK_PROVIDERS);
+  const [customModeSelected, setCustomModeSelected] = useState(false);
 
-  const browserDisplay =
-    browser === "chromium" ? "Local Chromium" : browser;
+  useEffect(() => {
+    let isMounted = true;
+    void getProviders()
+      .then((data) => {
+        if (isMounted && Array.isArray(data) && data.length > 0) {
+          setProvidersList(data);
+        }
+      })
+      .catch(() => {
+        // Fallback already prefilled
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const currentProviderMeta = providersList.find((p) => p.id === provider);
+
+  const isCustomModel =
+    provider !== "auto" &&
+    (customModeSelected ||
+      (Boolean(model) &&
+        Boolean(currentProviderMeta) &&
+        !currentProviderMeta?.models.includes(model)));
+
+  const handleProviderSelect = (newId: "auto" | "gemini" | "groq" | "ollama") => {
+    onProviderChange(newId);
+    setCustomModeSelected(false);
+    if (newId === "auto") {
+      onModelChange("");
+    } else {
+      const targetMeta = providersList.find((p) => p.id === newId);
+      const defaultMod = targetMeta?.default_model || "";
+      onModelChange(defaultMod);
+    }
+  };
+
+  const handleModelDropdownChange = (val: string) => {
+    if (val === "__custom__") {
+      setCustomModeSelected(true);
+      onModelChange("");
+    } else {
+      setCustomModeSelected(false);
+      onModelChange(val);
+    }
+  };
+
+  const browserDisplay = browser === "chromium" ? "Local Chromium" : browser;
+  const providerLabel = currentProviderMeta?.label || "Auto";
 
   return (
     <div className="rounded-lg border border-[#22272b] bg-[#0c0e10] overflow-hidden transition-all duration-200">
@@ -44,7 +125,7 @@ export function AdvancedSettings({
         </div>
 
         <div className="flex items-center gap-2 font-mono text-[11px] text-zinc-500">
-          <span>Local Chromium</span>
+          <span>{browserDisplay} • {providerLabel}</span>
           <ChevronDown
             className={cn(
               "h-3.5 w-3.5 text-zinc-500 transition-transform duration-200",
@@ -56,7 +137,8 @@ export function AdvancedSettings({
 
       {/* Collapsible Body */}
       {isOpen && (
-        <div className="border-t border-[#1f2428] bg-[#0e1114] p-4 animate-in fade-in-50 duration-150">
+        <div className="border-t border-[#1f2428] bg-[#0e1114] p-4 animate-in fade-in-50 duration-150 flex flex-col gap-4">
+          {/* Row 1: Browser, Headless, Steps */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             {/* Control 1: Browser */}
             <div className="flex flex-col gap-1.5">
@@ -147,8 +229,96 @@ export function AdvancedSettings({
             </div>
           </div>
 
-          {/* Control 4: Storage State / Authentication Precondition */}
-          <div className="mt-4 pt-3.5 border-t border-[#1f2428] flex flex-col gap-1.5">
+          {/* Row 2: AI Provider & Model Selection (M6.6) */}
+          <div className="pt-3.5 border-t border-[#1f2428] flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <label className="text-[11px] font-medium text-zinc-300 flex items-center gap-1.5">
+                <Cpu className="h-3.5 w-3.5 text-emerald-400" />
+                <span>AI Reasoning Provider &amp; Model</span>
+              </label>
+              <span className="text-[10px] text-zinc-500 font-mono">
+                Credentials from backend .env
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {/* Provider Selector */}
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="ai-provider-select" className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider">
+                  Provider
+                </label>
+                <select
+                  id="ai-provider-select"
+                  value={provider}
+                  onChange={(e) =>
+                    handleProviderSelect(e.target.value as "auto" | "gemini" | "groq" | "ollama")
+                  }
+                  className="h-9 w-full rounded-md border border-[#22272b] bg-[#0c0e10] px-3 text-xs font-mono text-zinc-200 focus:border-emerald-500/60 focus:outline-none cursor-pointer"
+                >
+                  {providersList.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Model Selector */}
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="ai-model-select" className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider">
+                  Model
+                </label>
+                {provider === "auto" ? (
+                  <div className="flex h-9 items-center rounded-md border border-[#22272b] bg-[#0c0e10]/60 px-3 text-xs font-mono text-zinc-500 select-none">
+                    Default (Automatic Failover)
+                  </div>
+                ) : (
+                  <select
+                    id="ai-model-select"
+                    value={isCustomModel ? "__custom__" : model}
+                    onChange={(e) => handleModelDropdownChange(e.target.value)}
+                    className="h-9 w-full rounded-md border border-[#22272b] bg-[#0c0e10] px-3 text-xs font-mono text-zinc-200 focus:border-emerald-500/60 focus:outline-none cursor-pointer"
+                  >
+                    {currentProviderMeta?.models.map((m) => (
+                      <option key={m} value={m}>
+                        {m} {m === currentProviderMeta.default_model ? "(Default)" : ""}
+                      </option>
+                    ))}
+                    <option value="__custom__">Custom model override...</option>
+                  </select>
+                )}
+              </div>
+            </div>
+
+            {/* Custom Model Text Override if requested */}
+            {provider !== "auto" && isCustomModel && (
+              <div className="flex flex-col gap-1.5 animate-in fade-in-50 duration-150">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="custom-model-input" className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider">
+                    Custom Model Name
+                  </label>
+                  <span className="text-[10px] text-zinc-500 font-mono">
+                    Must be valid for {currentProviderMeta?.label}
+                  </span>
+                </div>
+                <input
+                  id="custom-model-input"
+                  type="text"
+                  value={model}
+                  onChange={(e) => onModelChange(e.target.value)}
+                  placeholder={`Enter ${currentProviderMeta?.label} model ID (e.g. ${currentProviderMeta?.default_model})`}
+                  className="h-9 w-full rounded-md border border-[#22272b] bg-[#0c0e10] px-3 text-xs font-mono text-zinc-200 placeholder:text-zinc-600 focus:border-emerald-500/60 focus:outline-none"
+                />
+              </div>
+            )}
+
+            <span className="text-[10px] text-zinc-500">
+              Provider credentials are read from the local backend environment. Explicit providers never silently failover.
+            </span>
+          </div>
+
+          {/* Row 3: Storage State / Authentication Precondition */}
+          <div className="pt-3.5 border-t border-[#1f2428] flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
               <label htmlFor="storage-state-input" className="text-[11px] font-medium text-zinc-300 flex items-center gap-1.5">
                 <KeyRound className="h-3.5 w-3.5 text-amber-400" />

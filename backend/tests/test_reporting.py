@@ -373,3 +373,45 @@ def test_reporting_m65_index(tmp_path: Path) -> None:
 
     md = build_markdown_report(run_result, tmp_path)
     assert "Delete [index=1]" in md
+
+
+def test_reporting_m66_provider_and_model(tmp_path: Path) -> None:
+    """Verify that llm_provider and llm_model appear in reports without exposing credentials."""
+    run_result = AgentRunResult(
+        success=True,
+        termination_reason="goal_achieved",
+        message="Goal completed",
+        steps_executed=1,
+        history=[],
+        duration_ms=250,
+        run_id="run_m66_provider",
+        goal="Test provider reporting",
+        target_url="https://example.com",
+        llm_provider="groq",
+        llm_model="openai/gpt-oss-120b",
+    )
+
+    json_data = build_json_report(run_result, tmp_path)
+    assert json_data["llm_provider"] == "groq"
+    assert json_data["llm_model"] == "openai/gpt-oss-120b"
+    assert "api_key" not in json_data
+
+    md = build_markdown_report(run_result, tmp_path)
+    assert "- **AI Provider**: groq (`openai/gpt-oss-120b`)" in md
+
+    # Historical compatibility: run result without explicit provider/model fields
+    legacy_result = AgentRunResult(
+        success=False,
+        termination_reason="max_steps_exceeded",
+        message="Steps exceeded",
+        steps_executed=15,
+        history=[],
+        duration_ms=1000,
+        run_id="run_legacy",
+    )
+    legacy_json = build_json_report(legacy_result, tmp_path)
+    assert legacy_json["llm_provider"] == "auto"
+    assert legacy_json["llm_model"] is None
+
+    legacy_md = build_markdown_report(legacy_result, tmp_path)
+    assert "- **AI Provider**: Auto" in legacy_md

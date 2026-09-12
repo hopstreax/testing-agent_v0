@@ -236,3 +236,87 @@ async def test_runner_authenticated_flag_on_result(tmp_path: Path) -> None:
 
         assert result.authenticated is True
         mock_create_mgr.assert_called_once_with(storage_state="auth.json")
+
+
+# ---------------------------------------------------------------------------
+# M6.6: Fail-Fast & LLM Metadata Tests
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_runner_fail_fast_when_explicit_provider_unavailable(tmp_path: Path) -> None:
+    """Explicit unavailable provider fails cleanly before browser launch without spawning Chromium."""
+    from app.llm.groq import GroqLLMProvider
+
+    unconfigured_groq = GroqLLMProvider(api_key="")
+    assert await unconfigured_groq.is_available() is False
+
+    mock_session = MagicMock()
+    mock_session.launch = AsyncMock()
+
+    runner = TestRunner(
+        artifacts_base_dir=tmp_path,
+        llm_provider=unconfigured_groq,
+    )
+
+    with patch.object(runner, "_create_session_manager", return_value=mock_session):
+        result, run_dir = await runner.run(
+            url="https://example.com",
+            goal="Test fail fast",
+        )
+
+        # Crucial check: browser launch was NEVER attempted
+        assert mock_session.launch.await_count == 0
+
+        # Outcome verification
+        assert result.success is False
+        assert result.termination_reason == "unrecoverable_error"
+        assert "Provider 'groq' is unavailable or not configured" in result.message
+        assert result.failure_diagnosis is not None
+        assert result.failure_diagnosis.classification == "AUTOMATION_FAILURE"
+        assert result.failure_diagnosis.cause == "PROVIDER_ERROR"
+        assert result.llm_provider == "groq"
+        assert result.llm_model == "openai/gpt-oss-120b"
+
+        # Reports were still safely generated
+        assert (run_dir / "report.json").is_file()
+        assert (run_dir / "report.md").is_file()
+
+
+@pytest.mark.asyncio
+async def test_runner_records_llm_provider_and_model_on_result(tmp_path: Path) -> None:
+    """TestRunner records the actual executing provider and model on AgentRunResult."""
+    mock_page = make_mock_page()
+    provider = MockLLMProvider(
+        name="test_provider",
+        script=[
+            StepDecision(
+                observation_summary="Page ready",
+                decision="Assert heading visible",
+                action=AssertAction(assertion_type="visible", role="heading", name="Welcome"),
+            ),
+            StepDecision(
+                observation_summary="Heading verified",
+                decision="Finish immediately",
+                action=FinishAction(success=True, message="Done"),
+            ),
+        ],
+    )
+
+    mock_session = MagicMock()
+    mock_session.launch = AsyncMock()
+    mock_session.new_page = AsyncMock(return_value=mock_page)
+    mock_session.close = AsyncMock()
+
+    runner = TestRunner(
+        artifacts_base_dir=tmp_path,
+        llm_provider=provider,
+    )
+
+    with patch.object(runner, "_create_session_manager", return_value=mock_session):
+        result, run_dir = await runner.run(
+            url="https://example.com",
+            goal="Test provider metadata recording",
+        )
+
+        assert result.success is True
+        assert result.llm_provider == "test_provider"

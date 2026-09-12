@@ -17,7 +17,7 @@ from app.llm.utils import (
 )
 from app.models.actions import StepDecision
 
-DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
+DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
 GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
 
 

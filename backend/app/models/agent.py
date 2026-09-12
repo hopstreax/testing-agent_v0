@@ -53,3 +53,9 @@ class AgentRunResult(BaseModel):
     authenticated: bool = Field(
         default=False, description="True if run executed with authenticated storage state."
     )
+    llm_provider: Optional[str] = Field(
+        default=None, description="LLM provider used for test execution reasoning."
+    )
+    llm_model: Optional[str] = Field(
+        default=None, description="Model identifier used for test execution reasoning."
+    )

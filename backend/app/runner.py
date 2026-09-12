@@ -107,6 +107,47 @@ class TestRunner:
         provider = self.llm_provider or resolve_llm_provider()
         diagnostics = self.diagnostics or DiagnosticsCollector()
         effective_storage_state = storage_state if storage_state is not None else self.storage_state
+
+        # Initial provider/model determination
+        if isinstance(provider, FallbackLLMProvider):
+            active_p = provider.last_active_provider
+            resolved_provider = active_p.provider_name if active_p else "auto"
+            resolved_model = getattr(active_p, "model", None) if active_p else None
+        else:
+            resolved_provider = provider.provider_name
+            resolved_model = getattr(provider, "model", None)
+
+        # Fail-fast provider validation before launching browser for explicit providers
+        if not isinstance(provider, FallbackLLMProvider):
+            try:
+                is_ready = await provider.is_available()
+            except Exception:
+                is_ready = False
+
+            if not is_ready:
+                elapsed_ms = int((time.perf_counter() - start_time) * 1000)
+                err_msg = f"Provider '{provider.provider_name}' is unavailable or not configured. Check the backend provider configuration."
+
+                run_result = AgentRunResult(
+                    success=False,
+                    termination_reason="unrecoverable_error",
+                    message=err_msg,
+                    steps_executed=0,
+                    history=[],
+                    duration_ms=elapsed_ms,
+                    diagnostics=None,
+                    run_id=actual_run_id,
+                    goal=goal,
+                    target_url=url,
+                    artifacts_dir=str(run_dir),
+                    authenticated=bool(effective_storage_state),
+                    llm_provider=resolved_provider,
+                    llm_model=resolved_model,
+                )
+                run_result.failure_diagnosis = diagnose_failure(run_result)
+                write_reports(run_result, run_dir)
+                return (run_result, run_dir)
+
         session_mgr = self._create_session_manager(storage_state=effective_storage_state)
 
         agent = AutonomousTestAgent(
@@ -158,11 +199,19 @@ class TestRunner:
 
         # Guarantee run metadata fields on result
         assert run_result is not None
+
+        # Update resolved provider/model if fallback executed with a specific provider
+        if isinstance(provider, FallbackLLMProvider) and provider.last_active_provider:
+            resolved_provider = provider.last_active_provider.provider_name
+            resolved_model = getattr(provider.last_active_provider, "model", None)
+
         run_result.run_id = actual_run_id
         run_result.goal = goal
         run_result.target_url = url
         run_result.artifacts_dir = str(run_dir)
         run_result.authenticated = bool(effective_storage_state)
+        run_result.llm_provider = resolved_provider
+        run_result.llm_model = resolved_model
         if not run_result.success and not run_result.failure_diagnosis:
             run_result.failure_diagnosis = diagnose_failure(run_result)
 

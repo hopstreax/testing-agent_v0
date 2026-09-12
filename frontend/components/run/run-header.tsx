@@ -180,6 +180,15 @@ export function RunHeader({ run, elapsedMs }: RunHeaderProps) {
           <span>Engine: Local Chromium</span>
           <span>•</span>
           <span>{run.headless ? "Headless" : "Headed"}</span>
+          {(run.result?.llm_provider || run.provider) && (
+            <>
+              <span>•</span>
+              <span className="text-zinc-400">
+                LLM: {run.result?.llm_provider || run.provider}
+                {(run.result?.llm_model || run.model) ? ` • ${run.result?.llm_model || run.model}` : ""}
+              </span>
+            </>
+          )}
         </div>
 
         {run.result?.termination_reason && (
