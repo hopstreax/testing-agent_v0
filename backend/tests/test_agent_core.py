@@ -778,3 +778,62 @@ async def test_agent_stagnation_distinguishes_scroll_and_hover() -> None:
     target_hover_btn = agent.compute_action_target(HoverAction(role="button", name="Menu"))
     target_hover_link = agent.compute_action_target(HoverAction(role="link", name="Menu"))
     assert target_hover_btn != target_hover_link
+
+
+# =============================================================================
+# Milestone 6.3: Rich Deterministic Assertions Anti-Hallucination & Core Tests
+# =============================================================================
+
+@pytest.mark.parametrize(
+    "assertion_action",
+    [
+        AssertAction(assertion_type="enabled", role="button", name="Submit"),
+        AssertAction(assertion_type="disabled", selector="#save-btn"),
+        AssertAction(assertion_type="checked", role="checkbox", name="Agree"),
+        AssertAction(assertion_type="unchecked", selector="#terms"),
+        AssertAction(assertion_type="has_count", selector=".item", expected_value="3"),
+    ],
+)
+async def test_agent_m63_assertion_satisfies_anti_hallucination_guard(assertion_action: AssertAction) -> None:
+    mock_page = make_mock_page()
+
+    provider = MockLLMProvider(script=[
+        StepDecision(
+            observation_summary="Interactive element rendered.",
+            decision=f"Assert {assertion_action.assertion_type}.",
+            action=assertion_action,
+        ),
+        StepDecision(
+            observation_summary="Assertion succeeded.",
+            decision="Declare goal complete.",
+            action=FinishAction(success=True, message="Goal verified successfully"),
+        ),
+    ])
+
+    agent = AutonomousTestAgent(llm_provider=provider, max_steps=5)
+    result = await agent.run(mock_page, goal="Test M6.3 assertion verification")
+
+    assert result.success is True
+    assert result.termination_reason == "goal_achieved"
+    assert result.steps_executed == 2
+    assert result.history[0].decision.action.action_type == "assert"
+    assert result.history[0].result.success is True
+    assert result.history[1].decision.action.action_type == "finish"
+    assert result.history[1].result.success is True
+
+
+def test_agent_m63_assertion_signatures_and_targets() -> None:
+    agent = AutonomousTestAgent(llm_provider=MagicMock())
+
+    act_enabled = AssertAction(assertion_type="enabled", role="button", name="Submit")
+    act_disabled = AssertAction(assertion_type="disabled", role="button", name="Submit")
+    act_count_3 = AssertAction(assertion_type="has_count", selector=".item", expected_value="3")
+    act_count_0 = AssertAction(assertion_type="has_count", selector=".item", expected_value="0")
+
+    sig_enabled = agent.compute_action_signature(act_enabled)
+    sig_disabled = agent.compute_action_signature(act_disabled)
+    sig_count_3 = agent.compute_action_signature(act_count_3)
+    sig_count_0 = agent.compute_action_signature(act_count_0)
+
+    assert sig_enabled != sig_disabled
+    assert sig_count_3 != sig_count_0

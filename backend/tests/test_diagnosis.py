@@ -367,3 +367,51 @@ async def test_cli_displays_diagnosis(capsys: pytest.CaptureFixture[str]) -> Non
     assert "Classification: APPLICATION_BEHAVIOR_MISMATCH" in captured
     assert "Cause      : ASSERTION_FAILED" in captured
     assert "Reason     : Application behavior mismatch: has_text assertion failed on selector '#status'." in captured
+
+
+# =============================================================================
+# Milestone 6.3: Rich Deterministic Assertions Failure Diagnosis Tests
+# =============================================================================
+
+@pytest.mark.parametrize(
+    "assertion_type,kwargs,expected_summary_part",
+    [
+        ("enabled", {"role": "button", "name": "Submit"}, "enabled assertion failed on role='button', name='Submit'. Element was not enabled."),
+        ("disabled", {"selector": "#save-btn"}, "disabled assertion failed on selector='#save-btn'. Element was not disabled."),
+        ("checked", {"role": "checkbox", "name": "Agree"}, "checked assertion failed on role='checkbox', name='Agree'. Element was not checked."),
+        ("unchecked", {"selector": "#opt-in"}, "unchecked assertion failed on selector='#opt-in'. Element was not unchecked."),
+        ("has_count", {"selector": ".cart-item", "expected_value": "3"}, "has_count assertion failed on selector='.cart-item'. Expected count '3'."),
+    ],
+)
+def test_m63_assertion_failure_diagnosis(base_obs: ObservationPayload, assertion_type, kwargs, expected_summary_part):
+    history = [
+        StepRecord(
+            step_number=1,
+            observation=base_obs,
+            decision=StepDecision(
+                observation_summary="Page loaded",
+                decision=f"Verify {assertion_type}",
+                action=AssertAction(assertion_type=assertion_type, **kwargs),
+            ),
+            result=ActionResult(
+                success=False,
+                action_type="assert",
+                duration_ms=50,
+                error_message="Assertion failed",
+            ),
+        )
+    ]
+    res = AgentRunResult(
+        success=False,
+        termination_reason="goal_failed",
+        message=f"{assertion_type} assertion failed",
+        steps_executed=1,
+        history=history,
+        duration_ms=500,
+    )
+
+    diagnosis = diagnose_failure(res)
+    assert diagnosis is not None
+    assert diagnosis.classification == "APPLICATION_BEHAVIOR_MISMATCH"
+    assert diagnosis.cause == "ASSERTION_FAILED"
+    assert expected_summary_part in diagnosis.summary

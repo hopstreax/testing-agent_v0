@@ -64,7 +64,9 @@ def format_action_label(action: Any) -> str:
     if isinstance(action, NavigateAction):
         return f"navigate({action.url})"
     if isinstance(action, AssertAction):
-        target = action.name or action.role or action.selector or action.expected_value or ""
+        target = action.name or action.role or action.selector or action.text or action.expected_value or ""
+        if action.assertion_type == "has_count":
+            return f"assert(has_count={action.expected_value}, {target})"
         return f"assert({action.assertion_type}, {target})"
     if isinstance(action, PressKeyAction):
         return f"press_key('{action.key}')"
@@ -107,6 +109,7 @@ def build_json_report(run_result: AgentRunResult, run_dir: Path) -> Dict[str, An
                         "name": getattr(action, "name", None),
                         "text": getattr(action, "text", None),
                         "placeholder": getattr(action, "placeholder", None),
+                        "label": getattr(action, "label", None),
                         "selector": getattr(action, "selector", None),
                     }.items() if v is not None
                 },
@@ -218,6 +221,10 @@ def build_markdown_report(run_result: AgentRunResult, run_dir: Path) -> str:
                 target_parts.append(f"name='{act.name}'")
             if act.text:
                 target_parts.append(f"text='{act.text}'")
+            if act.placeholder:
+                target_parts.append(f"placeholder='{act.placeholder}'")
+            if act.label:
+                target_parts.append(f"label='{act.label}'")
             if act.selector:
                 target_parts.append(f"selector='{act.selector}'")
             target_str = ", ".join(target_parts) or "(page)"

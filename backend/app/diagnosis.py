@@ -131,6 +131,16 @@ def diagnose_failure(result: AgentRunResult) -> Optional[FailureDiagnosis]:
             summary = f"Application behavior mismatch: visible assertion failed on {target_desc}. Element was not visible."
         elif a_type == "hidden":
             summary = f"Application behavior mismatch: hidden assertion failed on {target_desc}. Element was not hidden."
+        elif a_type == "enabled":
+            summary = f"Application behavior mismatch: enabled assertion failed on {target_desc}. Element was not enabled."
+        elif a_type == "disabled":
+            summary = f"Application behavior mismatch: disabled assertion failed on {target_desc}. Element was not disabled."
+        elif a_type == "checked":
+            summary = f"Application behavior mismatch: checked assertion failed on {target_desc}. Element was not checked."
+        elif a_type == "unchecked":
+            summary = f"Application behavior mismatch: unchecked assertion failed on {target_desc}. Element was not unchecked."
+        elif a_type == "has_count":
+            summary = f"Application behavior mismatch: has_count assertion failed on {target_desc}. Expected count '{exp_val}'."
         elif a_type == "has_url":
             summary = f"Application behavior mismatch: has_url assertion failed. Expected URL containing '{exp_val}'."
         elif a_type == "has_title":

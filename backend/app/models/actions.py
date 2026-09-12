@@ -60,10 +60,15 @@ class AssertAction(BaseAction):
         "has_value",
         "has_url",
         "has_title",
+        "enabled",
+        "disabled",
+        "checked",
+        "unchecked",
+        "has_count",
     ] = Field(..., description="The type of assertion to evaluate.")
     expected_value: Optional[str] = Field(
         None,
-        description="Expected value for has_text, has_value, has_url, or has_title assertions.",
+        description="Expected value for has_text, has_value, has_url, has_title, or has_count assertions.",
     )
 
     @model_validator(mode="after")
@@ -74,12 +79,20 @@ class AssertAction(BaseAction):
                 raise ValueError(f"Assertion '{self.assertion_type}' requires a non-empty 'expected_value'.")
             return self
 
-        # 2. Element assertions with expected_value (has_text, has_value)
+        # 2. has_count requires a non-negative integer expected_value (accepts "0", rejects negative, decimal, non-numeric)
+        if self.assertion_type == "has_count":
+            cleaned = (self.expected_value or "").strip()
+            if not cleaned or not cleaned.isdigit():
+                raise ValueError(
+                    "Assertion 'has_count' requires 'expected_value' to be a non-negative integer string (e.g. '0', '3')."
+                )
+
+        # 3. Element assertions with expected_value (has_text, has_value)
         if self.assertion_type in ("has_text", "has_value"):
             if self.expected_value is None or not self.expected_value.strip():
                 raise ValueError(f"Assertion '{self.assertion_type}' requires a non-empty 'expected_value'.")
 
-        # 3. Element assertions (visible, hidden, has_text, has_value) require a locator criterion
+        # 4. Element assertions (visible, hidden, has_text, has_value, enabled, disabled, checked, unchecked, has_count) require a locator criterion
         has_locator = any([
             self.role,
             self.name,

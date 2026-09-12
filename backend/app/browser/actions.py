@@ -42,6 +42,11 @@ class ActionDispatcher:
         assertions.to_have_value = AsyncMock()
         assertions.to_have_url = AsyncMock()
         assertions.to_have_title = AsyncMock()
+        assertions.to_be_enabled = AsyncMock()
+        assertions.to_be_disabled = AsyncMock()
+        assertions.to_be_checked = AsyncMock()
+        assertions.not_to_be_checked = AsyncMock()
+        assertions.to_have_count = AsyncMock()
         return MagicMock(return_value=assertions)
 
     def resolve_locator(self, page: Any, action: AgentAction) -> Tuple[Any, str]:
@@ -121,6 +126,16 @@ class ActionDispatcher:
                         await expect_target(locator).to_contain_text(action.expected_value or "", timeout=timeout)
                     elif action.assertion_type == "has_value":
                         await expect_target(locator).to_have_value(action.expected_value or "", timeout=timeout)
+                    elif action.assertion_type == "enabled":
+                        await expect_target(locator).to_be_enabled(timeout=timeout)
+                    elif action.assertion_type == "disabled":
+                        await expect_target(locator).to_be_disabled(timeout=timeout)
+                    elif action.assertion_type == "checked":
+                        await expect_target(locator).to_be_checked(timeout=timeout)
+                    elif action.assertion_type == "unchecked":
+                        await expect_target(locator).not_to_be_checked(timeout=timeout)
+                    elif action.assertion_type == "has_count":
+                        await expect_target(locator).to_have_count(int(action.expected_value or "0"), timeout=timeout)
                     else:
                         raise NotImplementedError(f"Assertion type '{action.assertion_type}' is not supported.")
             elif isinstance(action, PressKeyAction):

@@ -516,3 +516,82 @@ def test_step_decision_deserialization_scroll_and_hover():
     reconstituted_hover = StepDecision.model_validate_json(json_hover)
     assert isinstance(reconstituted_hover.action, HoverAction)
     assert reconstituted_hover.action.name == "Products"
+
+
+# =============================================================================
+# Milestone 6.3: Rich Deterministic Assertions Schema Tests
+# =============================================================================
+
+def test_assert_action_m63_valid():
+    """Test valid schema instantiation for all 5 M6.3 assertion types."""
+    a_enabled = AssertAction(assertion_type="enabled", role="button", name="Submit")
+    assert a_enabled.assertion_type == "enabled"
+    assert a_enabled.role == "button"
+
+    a_disabled = AssertAction(assertion_type="disabled", selector="#submit-btn")
+    assert a_disabled.assertion_type == "disabled"
+    assert a_disabled.selector == "#submit-btn"
+
+    a_checked = AssertAction(assertion_type="checked", role="checkbox", name="Agree")
+    assert a_checked.assertion_type == "checked"
+    assert a_checked.name == "Agree"
+
+    a_unchecked = AssertAction(assertion_type="unchecked", selector="#terms-checkbox")
+    assert a_unchecked.assertion_type == "unchecked"
+    assert a_unchecked.selector == "#terms-checkbox"
+
+    a_count_zero = AssertAction(assertion_type="has_count", selector=".cart-item", expected_value="0")
+    assert a_count_zero.assertion_type == "has_count"
+    assert a_count_zero.expected_value == "0"
+
+    a_count_positive = AssertAction(assertion_type="has_count", role="listitem", expected_value="3")
+    assert a_count_positive.assertion_type == "has_count"
+    assert a_count_positive.expected_value == "3"
+
+
+@pytest.mark.parametrize("a_type", ["enabled", "disabled", "checked", "unchecked", "has_count"])
+def test_assert_action_m63_missing_locator_rejected(a_type: str):
+    """Test that all 5 M6.3 assertion types reject missing locator criteria."""
+    kwargs = {"assertion_type": a_type}
+    if a_type == "has_count":
+        kwargs["expected_value"] = "3"
+
+    with pytest.raises(ValidationError) as exc:
+        AssertAction(**kwargs)
+    assert "requires at least one locator criterion" in str(exc.value)
+
+
+@pytest.mark.parametrize("invalid_val", [None, "", "   ", "-1", "-10", "1.5", "0.0", "abc", "two"])
+def test_assert_action_has_count_invalid_expected_value(invalid_val):
+    """Test that has_count strictly rejects empty, negative, decimal, or non-numeric expected_value."""
+    with pytest.raises(ValidationError) as exc:
+        AssertAction(assertion_type="has_count", selector=".item", expected_value=invalid_val)
+    assert "non-negative integer string" in str(exc.value)
+
+
+def test_assert_action_m63_discriminated_union_roundtrip():
+    """Test AgentAction discriminated union and StepDecision serialization for M6.3 assertions."""
+    adapter = TypeAdapter(AgentAction)
+
+    types_and_payloads = [
+        ({"action_type": "assert", "assertion_type": "enabled", "role": "button", "name": "Proceed"}, "enabled"),
+        ({"action_type": "assert", "assertion_type": "disabled", "selector": "#checkout"}, "disabled"),
+        ({"action_type": "assert", "assertion_type": "checked", "selector": "input#newsletter"}, "checked"),
+        ({"action_type": "assert", "assertion_type": "unchecked", "role": "checkbox", "name": "Opt-in"}, "unchecked"),
+        ({"action_type": "assert", "assertion_type": "has_count", "selector": "li.item", "expected_value": "5"}, "has_count"),
+    ]
+
+    for payload, expected_type in types_and_payloads:
+        parsed = adapter.validate_python(payload)
+        assert isinstance(parsed, AssertAction)
+        assert parsed.assertion_type == expected_type
+
+        decision = StepDecision(
+            observation_summary="Testing page state",
+            decision=f"Asserting {expected_type}",
+            action=parsed,
+        )
+        json_str = decision.model_dump_json()
+        reconstituted = StepDecision.model_validate_json(json_str)
+        assert isinstance(reconstituted.action, AssertAction)
+        assert reconstituted.action.assertion_type == expected_type

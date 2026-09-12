@@ -47,6 +47,8 @@ def test_format_action_label() -> None:
     assert "fill" in format_action_label(FillAction(role="textbox", name="User", value="alice"))
     assert "navigate" in format_action_label(NavigateAction(url="https://example.com"))
     assert "assert" in format_action_label(AssertAction(assertion_type="visible", role="heading"))
+    assert format_action_label(AssertAction(assertion_type="enabled", role="button", name="Submit")) == "assert(enabled, Submit)"
+    assert format_action_label(AssertAction(assertion_type="has_count", selector=".items", expected_value="4")) == "assert(has_count=4, .items)"
     assert "finish" in format_action_label(FinishAction(success=True, message="Done"))
     assert format_action_label(ScrollAction(direction="down", amount=500)) == "scroll down 500px"
     assert format_action_label(ScrollAction(direction="up", amount=250)) == "scroll up 250px"
@@ -264,3 +266,70 @@ def test_report_authenticated_indicators(tmp_path: Path) -> None:
 
     md_report = build_markdown_report(run_result, run_dir)
     assert "- **Authenticated Session**: Yes" in md_report
+
+
+def test_reporting_m63_assertions(tmp_path: Path) -> None:
+    """Verify JSON and Markdown reports accurately capture all five M6.3 assertion types."""
+    run_dir = tmp_path / "run_m63_report"
+    run_dir.mkdir(parents=True)
+
+    obs = ObservationPayload(url="https://example.com", title="Test M6.3", aria_snapshot="")
+    steps = [
+        StepRecord(
+            step_number=1,
+            observation=obs,
+            decision=StepDecision(observation_summary="Step 1", decision="Assert disabled", action=AssertAction(assertion_type="disabled", selector="#btn-submit")),
+            result=ActionResult(success=True, action_type="assert", duration_ms=20, resolved_by="selector='#btn-submit'"),
+        ),
+        StepRecord(
+            step_number=2,
+            observation=obs,
+            decision=StepDecision(observation_summary="Step 2", decision="Assert checked", action=AssertAction(assertion_type="checked", role="checkbox", name="Agree")),
+            result=ActionResult(success=True, action_type="assert", duration_ms=25, resolved_by="role=checkbox, name=Agree"),
+        ),
+        StepRecord(
+            step_number=3,
+            observation=obs,
+            decision=StepDecision(observation_summary="Step 3", decision="Assert unchecked", action=AssertAction(assertion_type="unchecked", selector="#terms")),
+            result=ActionResult(success=True, action_type="assert", duration_ms=18, resolved_by="selector='#terms'"),
+        ),
+        StepRecord(
+            step_number=4,
+            observation=obs,
+            decision=StepDecision(observation_summary="Step 4", decision="Assert enabled", action=AssertAction(assertion_type="enabled", role="button", name="Submit")),
+            result=ActionResult(success=True, action_type="assert", duration_ms=30, resolved_by="role=button, name=Submit"),
+        ),
+        StepRecord(
+            step_number=5,
+            observation=obs,
+            decision=StepDecision(observation_summary="Step 5", decision="Assert has_count", action=AssertAction(assertion_type="has_count", selector=".item", expected_value="3")),
+            result=ActionResult(success=True, action_type="assert", duration_ms=15, resolved_by="selector='.item'"),
+        ),
+    ]
+
+    run_result = AgentRunResult(
+        success=True,
+        termination_reason="goal_achieved",
+        message="All M6.3 assertions passed",
+        steps_executed=5,
+        history=steps,
+        duration_ms=450,
+        run_id="run_m63_test",
+        goal="Test M6.3 reporting",
+        target_url="https://example.com",
+    )
+
+    json_data = build_json_report(run_result, run_dir)
+    assert len(json_data["assertions"]) == 5
+    assert [a["assertion_type"] for a in json_data["assertions"]] == [
+        "disabled", "checked", "unchecked", "enabled", "has_count"
+    ]
+    assert json_data["assertions"][4]["expected_value"] == "3"
+
+    md = build_markdown_report(run_result, run_dir)
+    assert "`disabled`" in md
+    assert "`checked`" in md
+    assert "`unchecked`" in md
+    assert "`enabled`" in md
+    assert "`has_count`" in md
+    assert "| 5 | `has_count` | `selector='.item'` | 3 | **PASSED** |" in md

@@ -22,6 +22,11 @@ def make_mock_expect():
     assertions.to_have_value = AsyncMock()
     assertions.to_have_url = AsyncMock()
     assertions.to_have_title = AsyncMock()
+    assertions.to_be_enabled = AsyncMock()
+    assertions.to_be_disabled = AsyncMock()
+    assertions.to_be_checked = AsyncMock()
+    assertions.not_to_be_checked = AsyncMock()
+    assertions.to_have_count = AsyncMock()
     return MagicMock(return_value=assertions)
 
 
@@ -402,3 +407,151 @@ async def test_execute_hover_failure_captured(dispatcher, mock_page):
     assert res.success is False
     assert res.action_type == "hover"
     assert "Element not found within timeout" in res.error_message
+
+
+# =============================================================================
+# Milestone 6.3: Rich Deterministic Assertions Dispatcher Tests
+# =============================================================================
+
+@pytest.mark.asyncio
+async def test_execute_assert_enabled_success(dispatcher, mock_page, mock_expect):
+    mock_locator = MagicMock()
+    mock_page.get_by_role = MagicMock(return_value=mock_locator)
+
+    action = AssertAction(assertion_type="enabled", role="button", name="Submit")
+    res = await dispatcher.execute(mock_page, action)
+
+    assert res.success is True
+    assert res.action_type == "assert"
+    assert "role=button, name=Submit" in res.resolved_by
+    mock_expect(mock_locator).to_be_enabled.assert_awaited_once_with(timeout=5000)
+
+
+@pytest.mark.asyncio
+async def test_execute_assert_enabled_failure(dispatcher, mock_page, mock_expect):
+    mock_locator = MagicMock()
+    mock_page.get_by_role = MagicMock(return_value=mock_locator)
+    mock_expect(mock_locator).to_be_enabled = AsyncMock(side_effect=AssertionError("Element is disabled"))
+
+    action = AssertAction(assertion_type="enabled", role="button", name="Submit")
+    res = await dispatcher.execute(mock_page, action)
+
+    assert res.success is False
+    assert res.action_type == "assert"
+    assert "Element is disabled" in res.error_message
+
+
+@pytest.mark.asyncio
+async def test_execute_assert_disabled_success(dispatcher, mock_page, mock_expect):
+    mock_locator = MagicMock()
+    mock_page.locator = MagicMock(return_value=mock_locator)
+
+    action = AssertAction(assertion_type="disabled", selector="#submit-btn")
+    res = await dispatcher.execute(mock_page, action)
+
+    assert res.success is True
+    assert res.action_type == "assert"
+    assert "selector='#submit-btn'" in res.resolved_by
+    mock_expect(mock_locator).to_be_disabled.assert_awaited_once_with(timeout=5000)
+
+
+@pytest.mark.asyncio
+async def test_execute_assert_disabled_failure(dispatcher, mock_page, mock_expect):
+    mock_locator = MagicMock()
+    mock_page.locator = MagicMock(return_value=mock_locator)
+    mock_expect(mock_locator).to_be_disabled = AsyncMock(side_effect=AssertionError("Element is enabled"))
+
+    action = AssertAction(assertion_type="disabled", selector="#submit-btn")
+    res = await dispatcher.execute(mock_page, action)
+
+    assert res.success is False
+    assert res.action_type == "assert"
+    assert "Element is enabled" in res.error_message
+
+
+@pytest.mark.asyncio
+async def test_execute_assert_checked_success(dispatcher, mock_page, mock_expect):
+    mock_locator = MagicMock()
+    mock_page.get_by_role = MagicMock(return_value=mock_locator)
+
+    action = AssertAction(assertion_type="checked", role="checkbox", name="Agree")
+    res = await dispatcher.execute(mock_page, action)
+
+    assert res.success is True
+    assert res.action_type == "assert"
+    mock_expect(mock_locator).to_be_checked.assert_awaited_once_with(timeout=5000)
+
+
+@pytest.mark.asyncio
+async def test_execute_assert_checked_failure(dispatcher, mock_page, mock_expect):
+    mock_locator = MagicMock()
+    mock_page.get_by_role = MagicMock(return_value=mock_locator)
+    mock_expect(mock_locator).to_be_checked = AsyncMock(side_effect=AssertionError("Element is not checked"))
+
+    action = AssertAction(assertion_type="checked", role="checkbox", name="Agree")
+    res = await dispatcher.execute(mock_page, action)
+
+    assert res.success is False
+    assert res.action_type == "assert"
+    assert "Element is not checked" in res.error_message
+
+
+@pytest.mark.asyncio
+async def test_execute_assert_unchecked_success(dispatcher, mock_page, mock_expect):
+    mock_locator = MagicMock()
+    mock_page.locator = MagicMock(return_value=mock_locator)
+
+    action = AssertAction(assertion_type="unchecked", selector="#terms-cb")
+    res = await dispatcher.execute(mock_page, action)
+
+    assert res.success is True
+    assert res.action_type == "assert"
+    mock_expect(mock_locator).not_to_be_checked.assert_awaited_once_with(timeout=5000)
+
+
+@pytest.mark.asyncio
+async def test_execute_assert_unchecked_failure(dispatcher, mock_page, mock_expect):
+    mock_locator = MagicMock()
+    mock_page.locator = MagicMock(return_value=mock_locator)
+    mock_expect(mock_locator).not_to_be_checked = AsyncMock(side_effect=AssertionError("Element is checked"))
+
+    action = AssertAction(assertion_type="unchecked", selector="#terms-cb")
+    res = await dispatcher.execute(mock_page, action)
+
+    assert res.success is False
+    assert res.action_type == "assert"
+    assert "Element is checked" in res.error_message
+
+
+@pytest.mark.asyncio
+async def test_execute_assert_has_count_success(dispatcher, mock_page, mock_expect):
+    mock_locator = MagicMock()
+    mock_page.locator = MagicMock(return_value=mock_locator)
+
+    action = AssertAction(assertion_type="has_count", selector=".items", expected_value="3")
+    res = await dispatcher.execute(mock_page, action)
+
+    assert res.success is True
+    assert res.action_type == "assert"
+    mock_expect(mock_locator).to_have_count.assert_awaited_once_with(3, timeout=5000)
+
+    # Test count 0
+    mock_expect(mock_locator).to_have_count.reset_mock()
+    action_zero = AssertAction(assertion_type="has_count", selector=".empty-list", expected_value="0")
+    res_zero = await dispatcher.execute(mock_page, action_zero)
+    assert res_zero.success is True
+    mock_expect(mock_locator).to_have_count.assert_awaited_once_with(0, timeout=5000)
+
+
+@pytest.mark.asyncio
+async def test_execute_assert_has_count_failure(dispatcher, mock_page, mock_expect):
+    mock_locator = MagicMock()
+    mock_page.locator = MagicMock(return_value=mock_locator)
+    mock_expect(mock_locator).to_have_count = AsyncMock(side_effect=AssertionError("Expected 3 items, found 1"))
+
+    action = AssertAction(assertion_type="has_count", selector=".items", expected_value="3")
+    res = await dispatcher.execute(mock_page, action)
+
+    assert res.success is False
+    assert res.action_type == "assert"
+    assert "Expected 3 items, found 1" in res.error_message
