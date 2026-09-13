@@ -160,7 +160,7 @@ export default function RunsPage() {
                 </button>
 
                 <Link
-                  href="/"
+                  href="/test"
                   className="inline-flex items-center gap-1.5 rounded-md bg-emerald-400 hover:bg-emerald-300 px-3 py-1.5 text-xs font-semibold text-zinc-950 transition-colors cursor-pointer shadow-xs active:scale-[0.98]"
                 >
                   <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
@@ -220,7 +220,7 @@ export default function RunsPage() {
                     <span>Try again</span>
                   </button>
                   <Link
-                    href="/"
+                    href="/test"
                     className="text-xs text-zinc-400 hover:text-white transition-colors"
                   >
                     Return to New Test
@@ -244,7 +244,7 @@ export default function RunsPage() {
                   </p>
                 </div>
                 <Link
-                  href="/"
+                  href="/test"
                   className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-emerald-400 hover:bg-emerald-300 px-3.5 py-1.5 text-xs font-semibold text-zinc-950 transition-colors shadow-xs active:scale-[0.98]"
                 >
                   <Plus className="h-3.5 w-3.5 stroke-[2.5]" />

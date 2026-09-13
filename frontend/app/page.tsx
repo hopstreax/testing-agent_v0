@@ -1,58 +1,50 @@
-"use client";
+import React from "react";
+import { redirect } from "next/navigation";
+import { LandingNav } from "@/components/landing/landing-nav";
+import { HeroSection } from "@/components/landing/hero-section";
+import { CapabilityStrip } from "@/components/landing/capability-strip";
+import { WorkflowSection } from "@/components/landing/workflow-section";
+import { ComparisonSection } from "@/components/landing/comparison-section";
+import { FinalCTA } from "@/components/landing/final-cta";
+import { LandingFooter } from "@/components/landing/landing-footer";
+import { Reveal } from "@/components/landing/reveal";
 
-import React, { useState, Suspense } from "react";
-import { Sidebar } from "@/components/shell/sidebar";
-import { TopBar } from "@/components/shell/top-bar";
-import { TestLaunchForm } from "@/components/test/test-launch-form";
-
-export default function HomePage() {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+export default async function LandingPage(props: {
+  searchParams: Promise<{ clone?: string }>;
+}) {
+  const searchParams = await props.searchParams;
+  if (searchParams?.clone) {
+    redirect(`/test?clone=${encodeURIComponent(searchParams.clone)}`);
+  }
 
   return (
-    <div className="flex min-h-screen bg-[#090a0c] text-[#f4f4f6]">
-      {/* Left Navigation Sidebar */}
-      <Sidebar
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
-      />
+    <div className="min-h-screen bg-[#08090b] text-[#f4f4f6] flex flex-col font-sans selection:bg-[#00e599]/30 selection:text-white">
+      <LandingNav />
+      <main className="flex-1 flex flex-col">
+        <HeroSection />
+        <CapabilityStrip />
 
-      {/* Main Content Area */}
-      <div className="flex flex-1 flex-col min-w-0">
-        {/* Top Bar */}
-        <TopBar onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)} />
-
-        {/* New Test Workspace */}
-        <main className="flex-1 overflow-y-auto px-4 py-8 sm:px-8 lg:px-12">
-          <div className="mx-auto max-w-3xl">
-            {/* Header Metadata Pill */}
-            <div className="mb-4 flex items-center gap-2">
-              <span className="inline-flex items-center rounded bg-emerald-950/70 border border-emerald-800/50 px-2 py-0.5 font-mono text-[10px] font-semibold tracking-wider text-emerald-400 uppercase">
-                Autonomous Agent
-              </span>
-              <span className="font-mono text-xs text-zinc-500">
-                • Local Chromium
-              </span>
+        {/* Middle Section: Workflow & Comparison */}
+        <section className="py-12 sm:py-16">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-8 items-start">
+              <div className="lg:col-span-7">
+                <Reveal delayMs={50}>
+                  <WorkflowSection />
+                </Reveal>
+              </div>
+              <div className="lg:col-span-5">
+                <Reveal delayMs={150}>
+                  <ComparisonSection />
+                </Reveal>
+              </div>
             </div>
-
-            {/* Main Title and Description */}
-            <div className="mb-8">
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-white">
-                Test your application
-              </h1>
-              <p className="mt-2 text-xs sm:text-sm leading-relaxed text-zinc-400 max-w-2xl">
-                Describe an autonomous user journey in plain English. The agent inspects
-                the DOM, reasons through interactions, and executes deterministic
-                verifications.
-              </p>
-            </div>
-
-            {/* Primary Test Launch Form */}
-            <Suspense fallback={<div className="h-64 animate-pulse rounded-xl bg-[#121518] border border-[#22272b]" />}>
-              <TestLaunchForm />
-            </Suspense>
           </div>
-        </main>
-      </div>
+        </section>
+
+        <FinalCTA />
+      </main>
+      <LandingFooter />
     </div>
   );
 }

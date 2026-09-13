@@ -156,7 +156,7 @@ export default function RunDetailPage({ params }: PageProps) {
                   <p className="text-xs text-zinc-400 font-mono">{initialError}</p>
                 </div>
                 <Link
-                  href="/"
+                  href="/test"
                   className="inline-flex items-center gap-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 px-3.5 py-2 text-xs font-medium text-white transition-colors"
                 >
                   <ArrowLeft className="h-3.5 w-3.5" />

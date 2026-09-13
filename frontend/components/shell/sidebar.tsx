@@ -22,7 +22,7 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const isNewTest = pathname === "/";
+  const isNewTest = pathname === "/test" || pathname === "/new";
   const isRuns = pathname === "/runs" || pathname.startsWith("/runs/");
 
   return (
@@ -95,7 +95,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               <nav className="flex flex-col gap-1">
                 {/* New Test */}
                 <Link
-                  href="/"
+                  href="/test"
                   className={cn(
                     "flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
                     isNewTest

@@ -11,10 +11,26 @@ from typing import Any, Dict, List, Literal, Optional
 import uuid
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, status
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field, HttpUrl, field_validator
 
+from app.auth import (
+    OAUTH_STATE_COOKIE_NAME,
+    User,
+    build_google_authorization_url,
+    clear_oauth_state_cookie,
+    clear_session_cookie,
+    create_session_token,
+    exchange_google_code_for_tokens,
+    generate_oauth_state,
+    get_google_oauth_config,
+    get_optional_current_user,
+    set_oauth_state_cookie,
+    set_session_cookie,
+    validate_oauth_state,
+    verify_google_id_token,
+)
 from app.llm.metadata import ProviderMetadata, get_providers_metadata
 from app.models.agent import AgentRunResult
 from app.runner import TestRunner, resolve_llm_provider
@@ -452,6 +468,158 @@ def create_app(
     async def list_providers() -> List[ProviderMetadata]:
         """Return static metadata describing supported LLM providers and curated models."""
         return get_providers_metadata()
+
+    # -------------------------------------------------------------------------
+    # Route: Google OAuth Login (GET /api/auth/google/login)
+    # -------------------------------------------------------------------------
+    @app.get("/api/auth/google/login")
+    async def google_login() -> Response:
+        """Initiate Google OAuth 2.0 authorization code flow."""
+        try:
+            config = get_google_oauth_config()
+        except RuntimeError:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Google OAuth is not configured.",
+            )
+
+        state = generate_oauth_state()
+        auth_url = build_google_authorization_url(
+            state=state,
+            client_id=config["client_id"],
+            redirect_uri=config["redirect_uri"],
+        )
+
+        response = RedirectResponse(
+            url=auth_url,
+            status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+        )
+        set_oauth_state_cookie(response, state)
+        return response
+
+    # -------------------------------------------------------------------------
+    # Route: Google OAuth Callback (GET /api/auth/google/callback)
+    # -------------------------------------------------------------------------
+    @app.get("/api/auth/google/callback")
+    async def google_callback(
+        request: Request,
+        code: Optional[str] = None,
+        state: Optional[str] = None,
+        error: Optional[str] = None,
+        error_description: Optional[str] = None,
+    ) -> Response:
+        """Handle Google OAuth 2.0 authorization callback and establish session."""
+        if error:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Google authentication was denied or cancelled.",
+            )
+
+        if not code or not code.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Missing authorization code.",
+            )
+
+        stored_state = request.cookies.get(OAUTH_STATE_COOKIE_NAME)
+        if not state or not stored_state:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Missing OAuth state parameter.",
+            )
+
+        if not validate_oauth_state(state, stored_state):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="OAuth state validation failed.",
+            )
+
+        try:
+            config = get_google_oauth_config()
+        except RuntimeError:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Google OAuth is not configured.",
+            )
+
+        try:
+            tokens = await exchange_google_code_for_tokens(
+                code=code.strip(),
+                client_id=config["client_id"],
+                client_secret=config["client_secret"],
+                redirect_uri=config["redirect_uri"],
+            )
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to exchange authorization code.",
+            )
+
+        id_token = tokens.get("id_token")
+        if not id_token or not isinstance(id_token, str):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid token response from Google.",
+            )
+
+        try:
+            user = verify_google_id_token(
+                id_token=id_token,
+                client_id=config["client_id"],
+            )
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Google ID token verification failed.",
+            )
+
+        try:
+            session_token = create_session_token(user)
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to establish session.",
+            )
+
+        response = RedirectResponse(
+            url="/runs",
+            status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+        )
+        set_session_cookie(response, session_token)
+        clear_oauth_state_cookie(response)
+        return response
+
+    # -------------------------------------------------------------------------
+    # Route: Current User Identity (GET /api/auth/me)
+    # -------------------------------------------------------------------------
+    @app.get("/api/auth/me")
+    async def get_current_auth_user(
+        current_user: Optional[User] = Depends(get_optional_current_user),
+    ) -> Dict[str, Any]:
+        """Return the current user identity if authenticated, else authenticated: False."""
+        if current_user is None:
+            return {"authenticated": False}
+
+        return {
+            "authenticated": True,
+            "user": {
+                "id": current_user.id,
+                "email": current_user.email,
+                "name": current_user.name,
+                "picture": current_user.picture,
+            },
+        }
+
+    # -------------------------------------------------------------------------
+    # Route: Logout (POST /api/auth/logout)
+    # -------------------------------------------------------------------------
+    @app.post("/api/auth/logout")
+    async def logout() -> Response:
+        """Clear the TraceKit session and any lingering OAuth state cookies."""
+        response = JSONResponse(content={"status": "ok"})
+        clear_session_cookie(response)
+        clear_oauth_state_cookie(response)
+        return response
 
     # -------------------------------------------------------------------------
     # Route: Safe Artifact Serving (GET /api/runs/{run_id}/artifacts/{file_path:path})

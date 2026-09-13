@@ -61,7 +61,7 @@ export function RunHeader({ run, elapsedMs }: RunHeaderProps) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Link
-            href="/"
+            href="/test"
             className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
@@ -71,7 +71,7 @@ export function RunHeader({ run, elapsedMs }: RunHeaderProps) {
           <span className="text-zinc-700 select-none">•</span>
 
           <Link
-            href={`/?clone=${run.run_id}`}
+            href={`/test?clone=${run.run_id}`}
             id="clone-and-edit-btn"
             className="inline-flex items-center gap-1.5 rounded-md border border-[#22272b] bg-[#121518] px-2.5 py-1 text-xs font-medium text-zinc-200 hover:border-emerald-600/60 hover:bg-[#161a1e] hover:text-emerald-300 transition-colors shadow-xs"
             title="Clone this run configuration to create a new test"

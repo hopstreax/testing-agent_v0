@@ -13,8 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TraceKit — Autonomous Website Testing",
-  description: "Autonomous website testing agent powered by Patchright Chromium and deterministic verification.",
+  title: "TraceKit — AI Web Testing",
+  description:
+    "TraceKit turns plain-language testing goals into browser actions, deterministic verification, and inspectable evidence.",
 };
 
 export default function RootLayout({
