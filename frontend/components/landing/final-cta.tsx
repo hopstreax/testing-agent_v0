@@ -1,9 +1,20 @@
+"use client";
+
 import React from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Reveal } from "./reveal";
+import { useAuth } from "@/context/auth-context";
 
 export function FinalCTA() {
+  const { isAuthenticated, isLoading } = useAuth();
+  const runTestHref = isLoading ? "#" : isAuthenticated ? "/test" : "/login";
+
+  const handleRunTestClick = (e: React.MouseEvent) => {
+    if (isLoading) {
+      e.preventDefault();
+    }
+  };
   return (
     <section id="final-cta-section" className="py-12 sm:py-16">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -39,7 +50,9 @@ export function FinalCTA() {
                 </Link>
 
                 <Link
-                  href="/test"
+                  href={runTestHref}
+                  onClick={handleRunTestClick}
+                  aria-busy={isLoading}
                   id="cta-run-new-test"
                   className="group inline-flex items-center gap-1.5 rounded-lg border border-[#22272b] bg-[#121518] hover:border-zinc-700 hover:bg-[#161a1e] px-5 py-2.5 text-xs sm:text-sm font-medium text-white transition-all active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-600"
                 >

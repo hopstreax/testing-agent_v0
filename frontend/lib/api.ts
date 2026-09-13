@@ -267,3 +267,69 @@ export async function getProviders(): Promise<ProviderMetadata[]> {
 
   return res.json();
 }
+
+/**
+ * Authenticated user profile returned by GET /api/auth/me
+ */
+export interface AuthUser {
+  id: string;
+  email: string | null;
+  name: string | null;
+  picture: string | null;
+}
+
+export interface AuthMeResponse {
+  authenticated: boolean;
+  user?: AuthUser;
+}
+
+/**
+ * Retrieve current user session from HttpOnly tracekit_session cookie.
+ * GET /api/auth/me
+ */
+export async function getAuthMe(): Promise<AuthMeResponse> {
+  const res = await fetch("/api/auth/me", {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+    },
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    return { authenticated: false };
+  }
+
+  return res.json();
+}
+
+/**
+ * Terminate TraceKit user session and clear cookies.
+ * POST /api/auth/logout
+ */
+export async function logoutSession(): Promise<{ status: string }> {
+  const res = await fetch("/api/auth/logout", {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+    },
+    credentials: "include",
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    let errorDetail = `Failed to log out (${res.status})`;
+    try {
+      const errJson = await res.json();
+      if (errJson.detail) {
+        errorDetail = typeof errJson.detail === "string" ? errJson.detail : JSON.stringify(errJson.detail);
+      }
+    } catch {
+      // fallback
+    }
+    throw new ApiError(errorDetail, res.status, errorDetail);
+  }
+
+  return res.json();
+}

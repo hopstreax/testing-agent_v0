@@ -1,7 +1,18 @@
+"use client";
+
 import React from "react";
 import Link from "next/link";
+import { useAuth } from "@/context/auth-context";
 
 export function LandingFooter() {
+  const { isAuthenticated, isLoading } = useAuth();
+  const dashboardHref = isLoading ? "#" : isAuthenticated ? "/runs" : "/login";
+
+  const handleDashboardClick = (e: React.MouseEvent) => {
+    if (isLoading) {
+      e.preventDefault();
+    }
+  };
   return (
     <footer className="border-t border-[#1f2428] bg-[#07080a] py-8">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -33,7 +44,10 @@ export function LandingFooter() {
               Getting Started
             </Link>
             <Link
-              href="/runs"
+              href={dashboardHref}
+              onClick={handleDashboardClick}
+              aria-busy={isLoading}
+              id="footer-dashboard"
               className="hover:text-zinc-200 transition-colors"
             >
               Dashboard

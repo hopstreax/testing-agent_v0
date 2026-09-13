@@ -29,9 +29,22 @@ import { cn } from "@/lib/utils";
  *     - "Get Started"     -> "/getting-started"
  */
 
+import { useAuth } from "@/context/auth-context";
+import { AccountPopover } from "@/components/auth/account-popover";
+
 export function LandingNav() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
+
+  const runTestHref = isLoading ? "#" : isAuthenticated ? "/test" : "/login";
+  const dashboardHref = isLoading ? "#" : isAuthenticated ? "/runs" : "/login";
+
+  const handleAuthNavClick = (e: React.MouseEvent) => {
+    if (isLoading) {
+      e.preventDefault();
+    }
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -70,21 +83,23 @@ export function LandingNav() {
             <a
               href="#how-it-works"
               id="nav-how-it-works"
-              className="hover:text-zinc-200 transition-colors focus-visible:outline-none focus-visible:text-[#00e599]"
+              className="hover:text-white transition-colors"
             >
               How it works
             </a>
             <Link
               href="/getting-started"
               id="nav-documentation"
-              className="hover:text-zinc-200 transition-colors focus-visible:outline-none focus-visible:text-[#00e599]"
+              className="hover:text-white transition-colors"
             >
               Documentation
             </Link>
             <Link
-              href="/runs"
+              href={dashboardHref}
+              onClick={handleAuthNavClick}
+              aria-busy={isLoading}
               id="nav-dashboard"
-              className="hover:text-zinc-200 transition-colors focus-visible:outline-none focus-visible:text-[#00e599]"
+              className="hover:text-white transition-colors"
             >
               Dashboard
             </Link>
@@ -93,15 +108,23 @@ export function LandingNav() {
 
         {/* Right: Desktop Actions (Login / Sign Up + Run New Test) */}
         <div className="hidden sm:flex items-center gap-3.5">
+          {isLoading ? (
+            <div className="h-6 w-20 bg-zinc-900/60 rounded animate-pulse" />
+          ) : isAuthenticated && user ? (
+            <AccountPopover />
+          ) : (
+            <Link
+              href="/login"
+              id="nav-login"
+              className="text-xs font-medium text-zinc-300 hover:text-white px-2.5 py-1.5 rounded transition-colors focus-visible:outline-none focus-visible:text-[#00e599]"
+            >
+              Login / Sign Up
+            </Link>
+          )}
           <Link
-            href="/login"
-            id="nav-login"
-            className="text-xs font-medium text-zinc-300 hover:text-white px-2.5 py-1.5 rounded transition-colors focus-visible:outline-none focus-visible:text-[#00e599]"
-          >
-            Login / Sign Up
-          </Link>
-          <Link
-            href="/test"
+            href={runTestHref}
+            onClick={handleAuthNavClick}
+            aria-busy={isLoading}
             id="nav-run-new-test"
             className="group inline-flex items-center gap-1.5 rounded-md bg-[#00e599] hover:bg-[#00f5a0] px-3.5 py-1.5 text-xs font-semibold text-[#08090b] transition-all shadow-xs hover:shadow-[#00e599]/20 active:scale-[0.98] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00e599]"
           >
@@ -112,20 +135,27 @@ export function LandingNav() {
 
         {/* Mobile top-bar buttons */}
         <div className="flex sm:hidden items-center gap-2">
+          {isLoading ? null : isAuthenticated && user ? (
+            <AccountPopover />
+          ) : (
+            <Link
+              href="/login"
+              id="nav-mobile-top-login"
+              className="text-xs font-medium text-zinc-300 hover:text-white px-2 py-1 transition-colors"
+            >
+              Login
+            </Link>
+          )}
           <Link
-            href="/login"
-            id="nav-mobile-top-login"
-            className="text-xs font-medium text-zinc-300 hover:text-white px-2 py-1 transition-colors"
-          >
-            Login
-          </Link>
-          <Link
-            href="/test"
+            href={runTestHref}
+            onClick={handleAuthNavClick}
+            aria-busy={isLoading}
             id="nav-mobile-top-run-test"
             className="inline-flex items-center rounded-md bg-[#00e599] px-2.5 py-1 text-xs font-semibold text-[#08090b]"
           >
             Run Test
           </Link>
+
           <button
             type="button"
             id="nav-mobile-menu-toggle"
@@ -158,26 +188,79 @@ export function LandingNav() {
               Documentation
             </Link>
             <Link
-              href="/runs"
+              href={dashboardHref}
               id="nav-mobile-menu-dashboard"
-              onClick={() => setMobileMenuOpen(false)}
+              onClick={(e) => {
+                if (isLoading) {
+                  e.preventDefault();
+                  return;
+                }
+                setMobileMenuOpen(false);
+              }}
+              aria-busy={isLoading}
               className="py-1 hover:text-[#00e599]"
             >
               Dashboard
             </Link>
             <div className="my-1 border-t border-[#1f2428]" />
+            {isAuthenticated && user ? (
+              <div className="flex flex-col gap-2 py-1">
+                <div className="flex items-center gap-2 px-1">
+                  {user.picture ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={user.picture}
+                      alt={user.name || "User"}
+                      referrerPolicy="no-referrer"
+                      className="h-6 w-6 rounded-full border border-emerald-500/40 object-cover shrink-0"
+                    />
+                  ) : (
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-950/80 border border-emerald-700/60 text-emerald-400 font-semibold text-[10px] shrink-0">
+                      {(user.name || user.email || "U")[0].toUpperCase()}
+                    </div>
+                  )}
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-xs font-medium text-white truncate">
+                      {user.name || "TraceKit User"}
+                    </span>
+                    <span className="text-[10px] text-zinc-400 truncate">
+                      {user.email || ""}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  id="nav-mobile-menu-logout"
+                  onClick={async () => {
+                    setMobileMenuOpen(false);
+                    await logout();
+                  }}
+                  className="text-left text-xs font-medium text-red-400 hover:text-red-300 py-1 px-1 cursor-pointer"
+                >
+                  Log out
+                </button>
+              </div>
+            ) : (
+              <Link
+                href="/login"
+                id="nav-mobile-menu-login"
+                onClick={() => setMobileMenuOpen(false)}
+                className="py-1 text-zinc-200 hover:text-[#00e599] font-medium"
+              >
+                Login / Sign Up
+              </Link>
+            )}
             <Link
-              href="/login"
-              id="nav-mobile-menu-login"
-              onClick={() => setMobileMenuOpen(false)}
-              className="py-1 text-zinc-200 hover:text-[#00e599] font-medium"
-            >
-              Login / Sign Up
-            </Link>
-            <Link
-              href="/test"
+              href={runTestHref}
               id="nav-mobile-menu-run-new-test"
-              onClick={() => setMobileMenuOpen(false)}
+              onClick={(e) => {
+                if (isLoading) {
+                  e.preventDefault();
+                  return;
+                }
+                setMobileMenuOpen(false);
+              }}
+              aria-busy={isLoading}
               className="mt-1 inline-flex items-center justify-center gap-1.5 rounded-md bg-[#00e599] py-2 text-xs font-semibold text-[#08090b]"
             >
               <span>Run New Test</span>

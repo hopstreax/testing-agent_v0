@@ -10,11 +10,16 @@ import {
   Menu,
 } from "lucide-react";
 
+import { useAuth } from "@/context/auth-context";
+import { AccountPopover } from "@/components/auth/account-popover";
+
 interface TopBarProps {
   onToggleSidebar?: () => void;
 }
 
 export function TopBar({ onToggleSidebar }: TopBarProps) {
+  const { user, isAuthenticated, isLoading } = useAuth();
+
   return (
     <header className="sticky top-0 z-30 flex h-14 w-full items-center justify-between border-b border-[#1f2428] bg-[#090a0c]/90 px-4 backdrop-blur-xs md:px-6">
       {/* Left: Mobile Menu Toggle + Environment / Project Context */}
@@ -75,9 +80,26 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
           </span>
         </Link>
 
-        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-950/80 border border-emerald-700/60 text-emerald-400">
-          <User className="h-3.5 w-3.5" />
-        </div>
+        {isLoading ? (
+          <div
+            className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-900/60 border border-zinc-800 text-zinc-600 animate-pulse"
+            aria-label="Loading account"
+          >
+            <User className="h-3.5 w-3.5" />
+          </div>
+        ) : isAuthenticated && user ? (
+          <AccountPopover />
+        ) : (
+          <Link
+            href="/login"
+            id="top-bar-login-btn"
+            className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-900 border border-zinc-700/80 text-zinc-400 hover:text-white hover:border-zinc-500 transition-colors"
+            title="Sign In"
+            aria-label="Sign in"
+          >
+            <User className="h-3.5 w-3.5" />
+          </Link>
+        )}
       </div>
     </header>
   );

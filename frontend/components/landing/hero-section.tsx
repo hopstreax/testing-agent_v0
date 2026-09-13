@@ -15,6 +15,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/auth-context";
 
 const STEPS_DATA = [
   {
@@ -38,8 +39,8 @@ const STEPS_DATA = [
   {
     id: "act",
     name: "Act",
-    subtext: "Clicking \"Add to cart\" with locator disambiguation...",
-    log: "[3] Clicked \"Add to cart\"",
+    subtext: "Clicking \"Add to cart\" button...",
+    log: "[3] Clicked button#add-to-cart-sauce-labs-backpack",
   },
   {
     id: "verify",
@@ -50,10 +51,19 @@ const STEPS_DATA = [
 ];
 
 export function HeroSection() {
+  const { isAuthenticated, isLoading } = useAuth();
   const [activeStep, setActiveStep] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const runTestHref = isLoading ? "#" : isAuthenticated ? "/test" : "/login";
+
+  const handleRunTestClick = (e: React.MouseEvent) => {
+    if (isLoading) {
+      e.preventDefault();
+    }
+  };
 
   // Subscribe to reduced motion preference changes safely after mount
   useEffect(() => {
@@ -135,7 +145,9 @@ export function HeroSection() {
             {/* Action Buttons with Micro-interactions */}
             <div className="mt-8 flex flex-wrap items-center gap-3.5">
               <Link
-                href="/test"
+                href={runTestHref}
+                onClick={handleRunTestClick}
+                aria-busy={isLoading}
                 id="hero-primary-cta"
                 className="group inline-flex items-center gap-2 rounded-lg bg-[#00e599] hover:bg-[#00f5a0] px-5 py-2.5 text-xs sm:text-sm font-semibold text-[#08090b] transition-all shadow-md hover:shadow-[#00e599]/25 active:scale-[0.98] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00e599]"
               >
