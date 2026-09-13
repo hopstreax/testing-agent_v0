@@ -316,11 +316,67 @@ def test_oauth_id_token_wrong_audience(rsa_key_pair):
 
 
 def test_oauth_id_token_expired(rsa_key_pair):
-    """17. Expired Google ID token is rejected."""
-    token = create_fake_google_id_token(rsa_key_pair, expires_delta=timedelta(seconds=-10))
+    """17. Expired Google ID token beyond leeway is rejected."""
+    token = create_fake_google_id_token(rsa_key_pair, expires_delta=timedelta(seconds=-30))
     _, pub_pem = rsa_key_pair
 
     with pytest.raises(ValueError, match="expired"):
+        verify_google_id_token(
+            token,
+            client_id="test-client-id.apps.googleusercontent.com",
+            signing_key_override=pub_pem,
+        )
+
+
+def test_oauth_id_token_clock_skew_within_leeway_accepted(rsa_key_pair):
+    """Google ID token with small future iat (clock skew within 10s leeway) is accepted."""
+    priv, pub_pem = rsa_key_pair
+    now = datetime.now(timezone.utc)
+    # Token issued 2 seconds in future relative to local clock
+    token = jwt.encode(
+        {
+            "sub": "google-sub-skew-ok",
+            "email": "skew@example.com",
+            "name": "Skew User",
+            "aud": "test-client-id.apps.googleusercontent.com",
+            "iss": "https://accounts.google.com",
+            "iat": int((now + timedelta(seconds=2)).timestamp()),
+            "exp": int((now + timedelta(hours=1)).timestamp()),
+        },
+        priv,
+        algorithm="RS256",
+        headers={"kid": "test-kid"},
+    )
+
+    user = verify_google_id_token(
+        token,
+        client_id="test-client-id.apps.googleusercontent.com",
+        signing_key_override=pub_pem,
+    )
+    assert user.id == "google-sub-skew-ok"
+    assert user.email == "skew@example.com"
+
+
+def test_oauth_id_token_clock_skew_beyond_leeway_rejected(rsa_key_pair):
+    """Google ID token with future iat beyond 10s leeway is rejected."""
+    priv, pub_pem = rsa_key_pair
+    now = datetime.now(timezone.utc)
+    # Token issued 25 seconds in future relative to local clock (exceeds 10s leeway)
+    token = jwt.encode(
+        {
+            "sub": "google-sub-skew-bad",
+            "email": "skew@example.com",
+            "aud": "test-client-id.apps.googleusercontent.com",
+            "iss": "https://accounts.google.com",
+            "iat": int((now + timedelta(seconds=25)).timestamp()),
+            "exp": int((now + timedelta(hours=1)).timestamp()),
+        },
+        priv,
+        algorithm="RS256",
+        headers={"kid": "test-kid"},
+    )
+
+    with pytest.raises(ValueError, match="Invalid Google ID token"):
         verify_google_id_token(
             token,
             client_id="test-client-id.apps.googleusercontent.com",

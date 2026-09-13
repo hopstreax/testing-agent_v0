@@ -218,6 +218,7 @@ def verify_google_id_token(
             algorithms=["RS256"],
             audience=client_id,
             issuer=GOOGLE_ISSUERS,
+            leeway=10,
             options={
                 "require": ["sub", "iat", "exp", "aud", "iss"],
                 "verify_signature": True,
