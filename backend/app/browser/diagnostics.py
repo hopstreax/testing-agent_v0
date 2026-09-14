@@ -1,6 +1,28 @@
 """CDP event listener and diagnostics collector for browser errors."""
 
+import re
 from typing import Any, Dict, List
+
+SENSITIVE_PARAM_PATTERN = re.compile(
+    r"(?i)(token|key|secret|password|auth|api_key|access_token|session)=([^&]+)"
+)
+
+
+def sanitize_url(url: str) -> str:
+    """Mask common sensitive query parameters in captured URLs."""
+    if not url:
+        return ""
+    return SENSITIVE_PARAM_PATTERN.sub(r"\1=[REDACTED]", url)
+
+
+def sanitize_error_text(text: str) -> str:
+    """Mask credentials, tokens, or bearer headers in error text."""
+    if not text:
+        return ""
+    text = SENSITIVE_PARAM_PATTERN.sub(r"\1=[REDACTED]", text)
+    if "Bearer " in text:
+        text = re.sub(r"Bearer\s+[A-Za-z0-9\-\._~+/]+=*", "Bearer [REDACTED]", text)
+    return text
 
 
 class DiagnosticsCollector:
@@ -58,7 +80,30 @@ class DiagnosticsCollector:
         self.failed_requests.clear()
 
     def get_summary(self) -> Dict[str, Any]:
-        """Return a structured summary of captured anomalies."""
+        """Return a structured summary of captured anomalies with bounded recent details."""
+        # Recent console errors (at most 3, sanitized)
+        recent_console: List[str] = [
+            sanitize_error_text(e.get("text", "") or str(e))
+            for e in self.console_errors[-3:]
+        ]
+
+        # Recent failed requests (HTTP status >= 400 and network transport failures, at most 3, sanitized)
+        failed_req_entries: List[str] = []
+        for h in self.http_errors:
+            status = h.get("status", "")
+            url = sanitize_url(h.get("url", ""))
+            status_text = h.get("status_text", "")
+            label = f"{status} {status_text}".strip() if status_text else str(status)
+            failed_req_entries.append(f"{label} - {url}".strip(" -"))
+        for r in self.failed_requests:
+            url = sanitize_url(r.get("url", ""))
+            method = r.get("method", "")
+            err = r.get("error_text", "Failed")
+            prefix = f"{method} " if method else ""
+            failed_req_entries.append(f"{prefix}{url} ({err})".strip())
+
+        recent_failed = failed_req_entries[-3:]
+
         return {
             "console_error_count": len(self.console_errors),
             "page_error_count": len(self.page_errors),
@@ -70,4 +115,6 @@ class DiagnosticsCollector:
                 self.http_errors,
                 self.failed_requests,
             ]),
+            "recent_console_errors": recent_console,
+            "recent_failed_requests": recent_failed,
         }

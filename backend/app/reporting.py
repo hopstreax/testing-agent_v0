@@ -283,9 +283,14 @@ def build_markdown_report(run_result: AgentRunResult, run_dir: Path) -> str:
     # Browser Diagnostics
     lines.append("## Browser Diagnostics")
     diag = run_result.diagnostics or {}
-    console_errs = diag.get("console_errors", 0)
-    page_errs = diag.get("page_errors", 0)
-    failed_reqs = diag.get("failed_requests", 0)
+    console_errs = diag.get("console_error_count", diag.get("console_errors", 0))
+    page_errs = diag.get("page_error_count", diag.get("page_errors", 0))
+    http_errs = diag.get("http_error_count", 0)
+    failed_req_count = diag.get("failed_request_count", 0)
+    if "http_error_count" in diag or "failed_request_count" in diag:
+        failed_reqs = http_errs + failed_req_count
+    else:
+        failed_reqs = diag.get("failed_requests", 0)
 
     lines.append(f"- **Console Errors**: {console_errs}")
     lines.append(f"- **Page Exceptions**: {page_errs}")
@@ -295,13 +300,22 @@ def build_markdown_report(run_result: AgentRunResult, run_dir: Path) -> str:
     if recent_console:
         lines.append("\n### Recent Console Errors")
         for err in recent_console:
-            lines.append(f"- `{err}`")
+            err_str = err.get("text", str(err)) if isinstance(err, dict) else str(err)
+            lines.append(f"- `{err_str}`")
 
     recent_failed_http = diag.get("recent_failed_requests", [])
     if recent_failed_http:
         lines.append("\n### Failed HTTP Requests")
         for req in recent_failed_http:
-            lines.append(f"- `{req}`")
+            if isinstance(req, dict):
+                status = req.get("status", "")
+                status_text = req.get("status_text", "")
+                url = req.get("url", "")
+                label = f"{status} {status_text}".strip() if status_text else str(status)
+                req_str = f"{label} - {url}".strip(" -")
+            else:
+                req_str = str(req)
+            lines.append(f"- `{req_str}`")
     lines.append("")
 
     # Visual Evidence

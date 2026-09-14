@@ -415,3 +415,119 @@ def test_reporting_m66_provider_and_model(tmp_path: Path) -> None:
 
     legacy_md = build_markdown_report(legacy_result, tmp_path)
     assert "- **AI Provider**: Auto" in legacy_md
+
+
+def test_reporting_diagnostics_renders_nonzero_counts_in_markdown(tmp_path: Path) -> None:
+    """Verify that nonzero diagnostics counts are accurately rendered and not reported as 0."""
+    run_result = AgentRunResult(
+        success=True,
+        termination_reason="goal_achieved",
+        message="Done",
+        steps_executed=5,
+        history=[],
+        duration_ms=1200,
+        run_id="run_diag_nonzero",
+        diagnostics={
+            "console_error_count": 4,
+            "page_error_count": 1,
+            "http_error_count": 3,
+            "failed_request_count": 1,
+            "has_errors": True,
+        },
+    )
+
+    md = build_markdown_report(run_result, tmp_path)
+    assert "- **Console Errors**: 4" in md
+    assert "- **Page Exceptions**: 1" in md
+    assert "- **Failed Network Requests (HTTP >= 400)**: 4" in md
+
+    # Ensure 0 is not falsely displayed
+    assert "- **Console Errors**: 0" not in md
+    assert "- **Failed Network Requests (HTTP >= 400)**: 0" not in md
+
+    json_data = build_json_report(run_result, tmp_path)
+    assert json_data["diagnostics"]["console_error_count"] == 4
+    assert json_data["diagnostics"]["http_error_count"] == 3
+
+
+def test_reporting_diagnostics_renders_recent_errors_and_failed_requests(tmp_path: Path) -> None:
+    """Verify that recent console errors and failed HTTP requests are rendered when present."""
+    run_result = AgentRunResult(
+        success=False,
+        termination_reason="unrecoverable_error",
+        message="Network error",
+        steps_executed=2,
+        history=[],
+        duration_ms=800,
+        run_id="run_diag_recent",
+        diagnostics={
+            "console_error_count": 1,
+            "page_error_count": 0,
+            "http_error_count": 1,
+            "failed_request_count": 0,
+            "has_errors": True,
+            "recent_console_errors": ["TypeError: Cannot read properties of undefined"],
+            "recent_failed_requests": ["404 Not Found - https://example.com/api/data"],
+        },
+    )
+
+    md = build_markdown_report(run_result, tmp_path)
+    assert "### Recent Console Errors" in md
+    assert "- `TypeError: Cannot read properties of undefined`" in md
+    assert "### Failed HTTP Requests" in md
+    assert "- `404 Not Found - https://example.com/api/data`" in md
+
+    json_data = build_json_report(run_result, tmp_path)
+    assert json_data["diagnostics"]["recent_console_errors"] == ["TypeError: Cannot read properties of undefined"]
+    assert json_data["diagnostics"]["recent_failed_requests"] == ["404 Not Found - https://example.com/api/data"]
+
+
+def test_reporting_diagnostics_empty_sections_omitted(tmp_path: Path) -> None:
+    """Verify that recent error sections are not rendered when there are no errors."""
+    run_result = AgentRunResult(
+        success=True,
+        termination_reason="goal_achieved",
+        message="Clean run",
+        steps_executed=3,
+        history=[],
+        duration_ms=500,
+        run_id="run_diag_clean",
+        diagnostics={
+            "console_error_count": 0,
+            "page_error_count": 0,
+            "http_error_count": 0,
+            "failed_request_count": 0,
+            "has_errors": False,
+            "recent_console_errors": [],
+            "recent_failed_requests": [],
+        },
+    )
+
+    md = build_markdown_report(run_result, tmp_path)
+    assert "- **Console Errors**: 0" in md
+    assert "- **Failed Network Requests (HTTP >= 400)**: 0" in md
+    assert "### Recent Console Errors" not in md
+    assert "### Failed HTTP Requests" not in md
+
+
+def test_reporting_legacy_diagnostics_keys_fallback(tmp_path: Path) -> None:
+    """Verify backwards-compatibility with historical diagnostics dictionaries."""
+    run_result = AgentRunResult(
+        success=False,
+        termination_reason="max_steps_exceeded",
+        message="Legacy run",
+        steps_executed=5,
+        history=[],
+        duration_ms=900,
+        run_id="run_diag_legacy",
+        diagnostics={
+            "console_errors": 2,
+            "page_errors": 1,
+            "failed_requests": 3,
+        },
+    )
+
+    md = build_markdown_report(run_result, tmp_path)
+    assert "- **Console Errors**: 2" in md
+    assert "- **Page Exceptions**: 1" in md
+    assert "- **Failed Network Requests (HTTP >= 400)**: 3" in md
