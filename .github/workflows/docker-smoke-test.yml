@@ -32,14 +32,32 @@ jobs:
 
       - name: Wait for backend and verify health endpoint
         run: |
-          # Wait for container startup and poll /api/health (up to 30s)
-          curl --retry 15 --retry-delay 2 --retry-connrefused -s http://127.0.0.1:8000/api/health
+          echo "Waiting for backend..."
+          RESPONSE=""
+          for i in $(seq 1 30); do
+            if RESPONSE=$(curl -fsS http://127.0.0.1:8000/api/health 2>/dev/null); then
+              echo "Backend ready on attempt $i"
+              echo "Health response: $RESPONSE"
+              break
+            fi
+            echo "Backend not ready yet (attempt $i/30)"
+            sleep 1
+          done
 
-          RESPONSE=$(curl -fsS http://127.0.0.1:8000/api/health)
-          echo "Health probe response: $RESPONSE"
+          if [ -z "$RESPONSE" ]; then
+            echo "Backend failed to become ready within 30 seconds."
+            exit 1
+          fi
 
-          # Validate JSON keys using Python
           python3 -c "import json, sys; data = json.loads(sys.stdin.read()); assert data.get('status') == 'ok', f'Unexpected status: {data}'; assert data.get('environment') == 'production', f'Unexpected environment: {data}'; print('Health verification passed.')" <<< "$RESPONSE"
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: |
+          echo "=== Container Status ==="
+          docker ps -a
+          echo "=== Container Logs ==="
+          docker logs tracekit-container || true
 
       - name: Verify Patchright Chromium launches inside container
         run: |
