@@ -89,7 +89,11 @@ def format_action_label(action: Any) -> str:
     return action_type
 
 
-def build_json_report(run_result: AgentRunResult, run_dir: Path) -> Dict[str, Any]:
+def build_json_report(
+    run_result: AgentRunResult,
+    run_dir: Path,
+    owner_id: Optional[str] = None,
+) -> Dict[str, Any]:
     """Construct a complete, machine-readable JSON dictionary representing the test run."""
     base_dir = Path(run_dir).resolve()
 
@@ -156,6 +160,7 @@ def build_json_report(run_result: AgentRunResult, run_dir: Path) -> Dict[str, An
 
     return {
         "run_id": run_result.run_id or base_dir.name,
+        "owner_id": owner_id,
         "goal": run_result.goal or "",
         "target_url": run_result.target_url or "",
         "success": run_result.success,
@@ -319,12 +324,16 @@ def build_markdown_report(run_result: AgentRunResult, run_dir: Path) -> str:
     return "\n".join(lines)
 
 
-def write_reports(run_result: AgentRunResult, run_dir: Path) -> Tuple[Path, Path]:
+def write_reports(
+    run_result: AgentRunResult,
+    run_dir: Path,
+    owner_id: Optional[str] = None,
+) -> Tuple[Path, Path]:
     """Serialize and write report.json and report.md to the specified run directory."""
     target_dir = Path(run_dir).resolve()
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    json_data = build_json_report(run_result, target_dir)
+    json_data = build_json_report(run_result, target_dir, owner_id=owner_id)
     json_path = target_dir / "report.json"
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(json_data, f, indent=2)

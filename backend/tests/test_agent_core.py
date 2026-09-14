@@ -25,6 +25,8 @@ from app.models.actions import (
     StepDecision,
 )
 
+pytestmark = pytest.mark.asyncio
+
 
 def make_mock_page(
     url: str = "https://example.com",

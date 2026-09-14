@@ -27,6 +27,8 @@ from app.models.actions import (
     StepDecision,
 )
 
+pytestmark = pytest.mark.asyncio
+
 
 @pytest.fixture
 def sample_context() -> StepPromptContext:

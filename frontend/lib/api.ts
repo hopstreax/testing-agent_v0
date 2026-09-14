@@ -26,6 +26,7 @@ export interface RunLaunchResponse {
   status: "running";
   url: string;
   goal: string;
+  owner_id?: string | null;
 }
 
 export interface FailureDiagnosis {
@@ -113,6 +114,7 @@ export interface RunSummary {
   created_at: string;
   duration_ms: number | null;
   success: boolean | null;
+  owner_id?: string | null;
 }
 
 export interface RunStatusResponse {
@@ -131,6 +133,7 @@ export interface RunStatusResponse {
   storage_state_path?: string;
   provider?: string;
   model?: string | null;
+  owner_id?: string | null;
 }
 
 export class ApiError extends Error {
@@ -155,6 +158,7 @@ export async function launchRun(request: RunRequest): Promise<RunLaunchResponse>
     headers: {
       "Content-Type": "application/json",
     },
+    credentials: "include",
     body: JSON.stringify(request),
   });
 
@@ -188,6 +192,7 @@ export async function getRun(runId: string): Promise<RunStatusResponse> {
     headers: {
       Accept: "application/json",
     },
+    credentials: "include",
     cache: "no-store",
   });
 
@@ -217,6 +222,7 @@ export async function listRuns(): Promise<RunSummary[]> {
     headers: {
       Accept: "application/json",
     },
+    credentials: "include",
     cache: "no-store",
   });
 

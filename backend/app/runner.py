@@ -62,6 +62,7 @@ class TestRunner:
         dispatcher: Optional[ActionDispatcher] = None,
         diagnostics: Optional[DiagnosticsCollector] = None,
         storage_state: Optional[Union[str, Path, Dict[str, Any]]] = None,
+        owner_id: Optional[str] = None,
     ) -> None:
         self.artifacts_base_dir = Path(artifacts_base_dir or "artifacts/runs").resolve()
         self.llm_provider = llm_provider
@@ -72,6 +73,7 @@ class TestRunner:
         self.dispatcher = dispatcher or ActionDispatcher()
         self.diagnostics = diagnostics
         self.storage_state = storage_state
+        self.owner_id = owner_id
 
     def create_run_directory(self, run_id: Optional[str] = None) -> Tuple[str, Path]:
         """Create a unique timestamped run artifact directory."""
@@ -145,7 +147,7 @@ class TestRunner:
                     llm_model=resolved_model,
                 )
                 run_result.failure_diagnosis = diagnose_failure(run_result)
-                write_reports(run_result, run_dir)
+                write_reports(run_result, run_dir, owner_id=self.owner_id)
                 return (run_result, run_dir)
 
         session_mgr = self._create_session_manager(storage_state=effective_storage_state)
@@ -216,6 +218,6 @@ class TestRunner:
             run_result.failure_diagnosis = diagnose_failure(run_result)
 
         # 3. Generate and persist structured test artifacts (report.json, report.md)
-        write_reports(run_result, run_dir)
+        write_reports(run_result, run_dir, owner_id=self.owner_id)
 
         return (run_result, run_dir)

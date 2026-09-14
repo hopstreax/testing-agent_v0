@@ -1,14 +1,37 @@
 import asyncio
 import json
+import os
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.auth import COOKIE_NAME, User, create_session_token
 from app.cli import parse_args
 from app.models.actions import StepRecord
 from app.models.agent import AgentRunResult, FailureDiagnosis
 from app.server import RunManager, RunRequest, RunStatusResponse, create_app
+
+TEST_USER_ID = "test_sub_1082938471928374"
+TEST_USER = User(id=TEST_USER_ID, email="developer@example.com", name="Test Developer")
+TEST_SECRET = "deterministic-test-session-secret-key-32bytes!!"
+
+
+@pytest.fixture(autouse=True)
+def set_test_env():
+    """Ensure SESSION_SECRET_KEY is consistently set for tests."""
+    with patch.dict(os.environ, {"SESSION_SECRET_KEY": TEST_SECRET, "ENVIRONMENT": "development"}):
+        yield
+
+
+def make_authenticated_client(app: FastAPI, user_id: str = TEST_USER_ID) -> TestClient:
+    """Create a TestClient with a valid tracekit_session cookie for the specified user."""
+    c = TestClient(app)
+    user = User(id=user_id, email=f"{user_id}@example.com", name="Test User")
+    token = create_session_token(user, secret_key=TEST_SECRET)
+    c.cookies.set(COOKIE_NAME, token)
+    return c
 
 
 @pytest.fixture
@@ -21,10 +44,10 @@ def temp_artifacts_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def client(temp_artifacts_dir: Path) -> TestClient:
-    """Create a TestClient with a clean RunManager pointed to temp directory."""
+    """Create an authenticated TestClient with a clean RunManager pointed to temp directory."""
     manager = RunManager(artifacts_base_dir=temp_artifacts_dir)
     app = create_app(artifacts_base_dir=temp_artifacts_dir, run_manager=manager)
-    return TestClient(app)
+    return make_authenticated_client(app, user_id=TEST_USER_ID)
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +158,7 @@ async def test_run_manager_successful_execution(temp_artifacts_dir: Path) -> Non
     """Test RunManager transitions to completed when agent succeeds."""
     manager = RunManager(artifacts_base_dir=temp_artifacts_dir)
     app = create_app(run_manager=manager)
-    client = TestClient(app)
+    client = make_authenticated_client(app)
 
     fake_run_result = AgentRunResult(
         success=True,
@@ -145,15 +168,16 @@ async def test_run_manager_successful_execution(temp_artifacts_dir: Path) -> Non
         duration_ms=2500,
     )
 
+    user_run_dir = temp_artifacts_dir / TEST_USER_ID / "fake_run"
     mock_runner = MagicMock()
-    mock_runner.create_run_directory.return_value = ("fake_run", temp_artifacts_dir / "fake_run")
+    mock_runner.create_run_directory.return_value = ("fake_run", user_run_dir)
 
     async def fake_run(*args, **kwargs):
-        run_dir = temp_artifacts_dir / "fake_run"
-        run_dir.mkdir(parents=True, exist_ok=True)
+        user_run_dir.mkdir(parents=True, exist_ok=True)
         # Write minimal report.json
         report_data = {
             "run_id": "fake_run",
+            "owner_id": TEST_USER_ID,
             "success": True,
             "termination_reason": "goal_achieved",
             "message": "Goal satisfied",
@@ -162,9 +186,9 @@ async def test_run_manager_successful_execution(temp_artifacts_dir: Path) -> Non
             "assertions": [{"step_number": 1, "assertion_type": "visible", "success": True}],
             "screenshots": ["screenshots/step_01.png"],
         }
-        with open(run_dir / "report.json", "w", encoding="utf-8") as f:
+        with open(user_run_dir / "report.json", "w", encoding="utf-8") as f:
             json.dump(report_data, f)
-        return fake_run_result, run_dir
+        return fake_run_result, user_run_dir
 
     mock_runner.run = AsyncMock(side_effect=fake_run)
 
@@ -197,7 +221,7 @@ async def test_run_manager_failed_execution_with_diagnosis(temp_artifacts_dir: P
     """Test RunManager transitions to failed and exposes FailureDiagnosis."""
     manager = RunManager(artifacts_base_dir=temp_artifacts_dir)
     app = create_app(run_manager=manager)
-    client = TestClient(app)
+    client = make_authenticated_client(app)
 
     fake_diagnosis = FailureDiagnosis(
         classification="APPLICATION_BEHAVIOR_MISMATCH",
@@ -218,10 +242,11 @@ async def test_run_manager_failed_execution_with_diagnosis(temp_artifacts_dir: P
 
     async def fake_run(*args, **kwargs):
         run_id = kwargs.get("run_id") or "failed_run"
-        run_dir = temp_artifacts_dir / run_id
+        run_dir = temp_artifacts_dir / TEST_USER_ID / run_id
         run_dir.mkdir(parents=True, exist_ok=True)
         report_data = {
             "run_id": run_id,
+            "owner_id": TEST_USER_ID,
             "success": False,
             "termination_reason": "goal_failed",
             "message": "Assertion failed",
@@ -267,7 +292,7 @@ def test_serve_artifacts_json_md_and_screenshot(
 ) -> None:
     """Test serving report.json, report.md, and png screenshots."""
     run_id = "20260911_run_artifacts_test"
-    run_dir = temp_artifacts_dir / run_id
+    run_dir = temp_artifacts_dir / TEST_USER_ID / run_id
     screenshots_dir = run_dir / "screenshots"
     screenshots_dir.mkdir(parents=True, exist_ok=True)
 
@@ -316,7 +341,7 @@ def test_reject_path_traversal(
 ) -> None:
     """Test path traversal attempts are rejected with 404."""
     run_id = "test_run_secure"
-    run_dir = temp_artifacts_dir / run_id
+    run_dir = temp_artifacts_dir / TEST_USER_ID / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "report.json").write_text("{}", encoding="utf-8")
 
@@ -335,7 +360,7 @@ def test_reject_unsupported_extensions(
 ) -> None:
     """Test unsupported extensions (.py, .exe, .sh) are rejected."""
     run_id = "test_run_ext"
-    run_dir = temp_artifacts_dir / run_id
+    run_dir = temp_artifacts_dir / TEST_USER_ID / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / "malicious.py").write_text("print('bad')", encoding="utf-8")
 
@@ -380,7 +405,7 @@ def test_list_runs_from_memory_and_disk(
 ) -> None:
     """Test listing runs aggregates active runs and historical disk runs."""
     # Create a historical run directly on disk
-    disk_run = temp_artifacts_dir / "20260910_historical_run"
+    disk_run = temp_artifacts_dir / TEST_USER_ID / "20260910_historical_run"
     disk_run.mkdir(parents=True, exist_ok=True)
     report_data = {
         "run_id": "20260910_historical_run",
@@ -409,10 +434,10 @@ def test_list_runs_chronological_ordering_newest_first(
     """Test runs are sorted newest-first using canonical run_id across memory and disk."""
     manager = RunManager(artifacts_base_dir=temp_artifacts_dir)
     app = create_app(run_manager=manager)
-    client = TestClient(app)
+    client = make_authenticated_client(app)
 
     # 1. Historical run 1 on disk (Sep 11 morning)
-    disk_run_1 = temp_artifacts_dir / "20260911_100000_aaaa1111"
+    disk_run_1 = temp_artifacts_dir / TEST_USER_ID / "20260911_100000_aaaa1111"
     disk_run_1.mkdir(parents=True, exist_ok=True)
     (disk_run_1 / "report.json").write_text(
         json.dumps({
@@ -426,7 +451,7 @@ def test_list_runs_chronological_ordering_newest_first(
     )
 
     # 2. Historical run 2 on disk (Sep 11 afternoon)
-    disk_run_2 = temp_artifacts_dir / "20260911_150000_bbbb2222"
+    disk_run_2 = temp_artifacts_dir / TEST_USER_ID / "20260911_150000_bbbb2222"
     disk_run_2.mkdir(parents=True, exist_ok=True)
     (disk_run_2 / "report.json").write_text(
         json.dumps({
@@ -442,6 +467,7 @@ def test_list_runs_chronological_ordering_newest_first(
     # 3. In-memory run (Sep 12) with ISO created_at
     manager._runs["20260912_110000_cccc3333"] = RunStatusResponse(
         run_id="20260912_110000_cccc3333",
+        owner_id=TEST_USER_ID,
         status="running",
         url="https://example.com/newest",
         goal="Newest test",
@@ -536,7 +562,7 @@ def test_post_runs_with_valid_storage_state(client: TestClient, tmp_path: Path) 
     auth_file.write_text(json.dumps({"cookies": [{"name": "sid", "value": "xyz123"}]}), encoding="utf-8")
 
     with patch.object(RunManager, "start_run") as mock_start:
-        mock_start.return_value = MagicMock(run_id="run_auth_1", status="running", url="http://example.com", goal="Check")
+        mock_start.return_value = MagicMock(run_id="run_auth_1", status="running", url="http://example.com", goal="Check", owner_id=TEST_USER_ID)
         res = client.post("/api/runs", json={
             "url": "http://example.com",
             "goal": "Check dashboard",
@@ -613,7 +639,7 @@ def test_post_runs_rejects_storage_state_without_cookies_or_origins(client: Test
 def test_post_runs_null_storage_state_allowed(client: TestClient) -> None:
     """Test POST /api/runs works normally with null or omitted storage_state_path."""
     with patch.object(RunManager, "start_run") as mock_start:
-        mock_start.return_value = MagicMock(run_id="run_clean_1", status="running", url="http://example.com", goal="Check")
+        mock_start.return_value = MagicMock(run_id="run_clean_1", status="running", url="http://example.com", goal="Check", owner_id=TEST_USER_ID)
         res = client.post("/api/runs", json={
             "url": "http://example.com",
             "goal": "Check public page",
@@ -643,7 +669,7 @@ async def test_run_status_response_preserves_clone_configuration(tmp_path: Path)
     )
 
     with patch.object(manager, "_execute_run", new_callable=AsyncMock):
-        status = manager.start_run(req)
+        status = manager.start_run(req, user_id=TEST_USER_ID)
 
     assert status.url == "https://example.com/app"
     assert status.goal == "Test clone config"
@@ -652,7 +678,7 @@ async def test_run_status_response_preserves_clone_configuration(tmp_path: Path)
     assert status.storage_state_path == str(auth_file.resolve())
 
     # Ensure get_run returns the same configuration
-    fetched = manager.get_run(status.run_id)
+    fetched = manager.get_run(status.run_id, user_id=TEST_USER_ID)
     assert fetched is not None
     assert fetched.max_steps == 25
     assert fetched.storage_state_path == str(auth_file.resolve())
@@ -665,7 +691,7 @@ async def test_run_status_response_preserves_clone_configuration(tmp_path: Path)
 def test_historical_disk_run_clone_configuration_fallback(tmp_path: Path) -> None:
     """Verify historical disk-backed runs safely fallback to max_steps=15 and storage_state_path=None."""
     manager = RunManager(artifacts_base_dir=tmp_path)
-    run_dir = tmp_path / "20260912_120000_disktest"
+    run_dir = tmp_path / TEST_USER_ID / "20260912_120000_disktest"
     run_dir.mkdir(parents=True)
 
     report_data = {
@@ -678,7 +704,7 @@ def test_historical_disk_run_clone_configuration_fallback(tmp_path: Path) -> Non
     }
     (run_dir / "report.json").write_text(json.dumps(report_data), encoding="utf-8")
 
-    fetched = manager.get_run("20260912_120000_disktest")
+    fetched = manager.get_run("20260912_120000_disktest", user_id=TEST_USER_ID)
     assert fetched is not None
     assert fetched.url == "https://example.com/old"
     assert fetched.goal == "Historical test goal"
@@ -802,7 +828,7 @@ async def test_manager_start_run_resolves_explicit_provider_and_model(tmp_path: 
     with patch("app.server.TestRunner") as mock_runner_cls, patch.object(
         manager, "_execute_run", new_callable=AsyncMock
     ):
-        status = manager.start_run(req)
+        status = manager.start_run(req, user_id=TEST_USER_ID)
 
         assert status.provider == "groq"
         assert status.model == "openai/gpt-oss-20b"
