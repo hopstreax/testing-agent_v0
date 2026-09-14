@@ -51,12 +51,16 @@ class ActionDispatcher:
 
     def resolve_base_locator(self, page: Any, action: AgentAction) -> Tuple[Any, str]:
         """Resolve base element locator using priority ladder:
-        1. Role + Name
-        2. Text
-        3. Placeholder / Label
-        4. CSS / test-id Selector
+        1. CSS / Selector (explicit specific target or ID / data-testid)
+        2. Role + Name
+        3. Text
+        4. Placeholder / Label
         """
-        # 1. ARIA Role & Name
+        # 1. CSS / Selector
+        if getattr(action, "selector", None):
+            return (page.locator(action.selector), f"selector='{action.selector}'")
+
+        # 2. ARIA Role & Name
         if getattr(action, "role", None):
             if getattr(action, "name", None):
                 return (
@@ -65,21 +69,17 @@ class ActionDispatcher:
                 )
             return (page.get_by_role(action.role), f"role={action.role}")
 
-        # 2. Text Content
+        # 3. Text Content
         if getattr(action, "text", None):
             return (page.get_by_text(action.text, exact=False), f"text='{action.text}'")
 
-        # 3. Placeholder / Label
+        # 4. Placeholder / Label
         if getattr(action, "placeholder", None):
             return (page.get_by_placeholder(action.placeholder), f"placeholder='{action.placeholder}'")
         if not isinstance(action, SelectAction) and getattr(action, "label", None):
             return (page.get_by_label(action.label), f"label='{action.label}'")
 
-        # 4. CSS / Selector
-        if getattr(action, "selector", None):
-            return (page.locator(action.selector), f"selector='{action.selector}'")
-
-        raise ValueError("Action does not contain any valid locator criteria (role, text, placeholder, label, selector).")
+        raise ValueError("Action does not contain any valid locator criteria (selector, role, text, placeholder, label).")
 
     def resolve_locator(self, page: Any, action: AgentAction) -> Tuple[Any, str]:
         """Resolve element locator using priority ladder and optional 0-based index."""

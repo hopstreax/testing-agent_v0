@@ -73,6 +73,18 @@ def test_serialize_prompt_context(sample_context: StepPromptContext) -> None:
     assert "has_count" in text
 
 
+def test_prompt_hardened_index_guidance(sample_context: StepPromptContext) -> None:
+    """Verify system prompt removes generic index=0 defaults and emphasizes disambiguation."""
+    prompt = serialize_prompt_context(sample_context)
+    # Action templates must not encourage index=0 as default
+    assert '"index": 0' not in prompt
+    # Disambiguation rules must clearly guide index usage
+    assert "Do NOT provide 'index' by default" in prompt
+    assert "'index' is an explicit disambiguation mechanism" in prompt
+    assert "ambiguity error from TraceKit explicitly indicates multiple matches" in prompt
+
+
+
 def test_extract_and_parse_step_decision_variants() -> None:
     # 1. Plain JSON
     raw_plain = json.dumps(VALID_DECISION_DICT)

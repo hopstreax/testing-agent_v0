@@ -61,19 +61,21 @@ def serialize_prompt_context(context: StepPromptContext) -> str:
         "  }\n"
         "}\n\n"
         "Action details:\n"
-        '- click: {"action_type": "click", "role": "...", "name": "...", "text": "...", "selector": "...", "index": 0}\n'
-        '- fill: {"action_type": "fill", "value": "text to type", "role": "...", "name": "...", "placeholder": "...", "index": 0}\n'
+        '- click: {"action_type": "click", "role": "...", "name": "...", "text": "...", "selector": "..."}\n'
+        '- fill: {"action_type": "fill", "value": "text to type", "role": "...", "name": "...", "placeholder": "..."}\n'
         '- navigate: {"action_type": "navigate", "url": "http://..."}\n'
-        '- assert: {"action_type": "assert", "assertion_type": "visible" | "hidden" | "has_text" | "has_value" | "has_url" | "has_title" | "enabled" | "disabled" | "checked" | "unchecked" | "has_count", "expected_value": "...", "role": "...", "name": "...", "selector": "...", "index": 0}. Note: "has_url" and "has_title" are page assertions requiring non-empty expected_value. "enabled", "disabled", "checked", "unchecked" target interactive controls and require a locator (expected_value is ignored). "has_count" verifies exact element count across the entire matching set and requires a locator and a non-negative integer expected_value (do not provide "index" with "has_count").\n'
-        '- press_key: {"action_type": "press_key", "key": "Enter" | "Escape" | "Tab" | "ArrowDown" | "ArrowUp" | "Backspace", "role": "...", "name": "...", "selector": "...", "index": 0}. Note: locator fields are optional; if omitted, key is dispatched globally to the active page.\n'
-        '- select: {"action_type": "select", "value": "option_value" OR "label": "Option Label", "role": "combobox", "name": "...", "selector": "...", "index": 0}. Note: targets native <select> controls; requires a locator and exactly one of value or label.\n'
+        '- assert: {"action_type": "assert", "assertion_type": "visible" | "hidden" | "has_text" | "has_value" | "has_url" | "has_title" | "enabled" | "disabled" | "checked" | "unchecked" | "has_count", "expected_value": "...", "role": "...", "name": "...", "selector": "..."}. Note: "has_url" and "has_title" are page assertions requiring non-empty expected_value. "enabled", "disabled", "checked", "unchecked" target interactive controls and require a locator (expected_value is ignored). "has_count" verifies exact element count across the entire matching set and requires a locator and a non-negative integer expected_value (do not provide "index" with "has_count").\n'
+        '- press_key: {"action_type": "press_key", "key": "Enter" | "Escape" | "Tab" | "ArrowDown" | "ArrowUp" | "Backspace", "role": "...", "name": "...", "selector": "..."}. Note: locator fields are optional; if omitted, key is dispatched globally to the active page.\n'
+        '- select: {"action_type": "select", "value": "option_value" OR "label": "Option Label", "role": "combobox", "name": "...", "selector": "..."}. Note: targets native <select> controls; requires a locator and exactly one of value or label.\n'
         '- scroll: {"action_type": "scroll", "direction": "down" | "up", "amount": 500}. Note: use incremental scrolling when the target element is below the current viewport; do not repeatedly scroll if the observation is unchanged.\n'
-        '- hover: {"action_type": "hover", "role": "...", "name": "...", "text": "...", "selector": "...", "index": 0}. Note: use when interaction requires revealing a hover menu, tooltip, or dropdown before interacting with the revealed content.\n'
+        '- hover: {"action_type": "hover", "role": "...", "name": "...", "text": "...", "selector": "..."}. Note: use when interaction requires revealing a hover menu, tooltip, or dropdown before interacting with the revealed content.\n'
         '- finish: {"action_type": "finish", "success": true/false, "message": "outcome summary"}. Note: success=true requires at least one prior verified assert action.\n\n'
         "Disambiguation Rules:\n"
         "- Locators remain strict by default. If a locator matches multiple elements, it will fail rather than silently clicking the first element.\n"
-        "- First, try to make the locator more specific using available evidence (e.g. unique label, text, or selector).\n"
-        "- If repeated elements are genuinely intended and an ordinal position is justified by the UI structure, use optional 'index' (0-based: 0 for first, 1 for second, up to N-1).\n"
+        "- Do NOT provide 'index' by default. Always prefer a specific, unique locator when available (e.g. unique name, text, label, or selector/ID).\n"
+        "- 'index' is an explicit disambiguation mechanism (0-based: 0 for first, 1 for second, up to N-1). Use 'index' ONLY when:\n"
+        "  a) the intended target is genuinely one item among multiple equivalent matches and an ordinal position is justified by the UI structure, or\n"
+        "  b) an ambiguity error from TraceKit explicitly indicates multiple matches and suggests valid index choices.\n"
         '  Example: If 3 buttons share name "Delete": ambiguous=\'{"role":"button", "name":"Delete"}\' vs explicit=\'{"role":"button", "name":"Delete", "index":1}\'.\n'
         "- Do not guess indexes arbitrarily; use index only when observation/evidence supports which repeated element you intend to target.\n"
         "- Do NOT use 'index' with 'has_count' assertions ('has_count' intentionally evaluates the entire matching set).\n\n"

@@ -657,3 +657,66 @@ async def test_execute_out_of_range_index_immediate_error(dispatcher, mock_page)
 
     assert res.success is False
     assert "Locator index 5 is out of range; locator matched 3 elements. Valid indexes are 0 through 2." in res.error_message
+
+
+# =============================================================================
+# Milestone 9.3: Locator Robustness & Specific Selector Preservation Tests
+# =============================================================================
+
+def test_resolve_locator_specific_selector_not_discarded_when_role_supplied(dispatcher, mock_page):
+    """Verify that when both role/name and a specific selector are supplied, the selector is prioritized."""
+    mock_selector_loc = MagicMock()
+    mock_page.locator.return_value = mock_selector_loc
+
+    action = ClickAction(
+        role="button",
+        name="Add to cart",
+        selector="#add-to-cart-sauce-labs-backpack",
+    )
+    locator, strat = dispatcher.resolve_locator(mock_page, action)
+
+    # Specific selector is used, role is not called
+    mock_page.locator.assert_called_once_with("#add-to-cart-sauce-labs-backpack")
+    mock_page.get_by_role.assert_not_called()
+    assert locator == mock_selector_loc
+    assert "selector='#add-to-cart-sauce-labs-backpack'" in strat
+
+
+@pytest.mark.asyncio
+async def test_execute_realistic_wrong_element_risk_distinction(dispatcher, mock_page):
+    """Demonstrate the critical distinction between generic index-based targeting and specific selector targeting:
+    - Generic role+name with index=0 targets the 0th matching button in DOM traversal order.
+    - When a specific selector is supplied alongside role+name, the specific selector is NOT silently discarded.
+    """
+    mock_generic_base = MagicMock()
+    mock_first_button = MagicMock()
+    mock_first_button.click = AsyncMock()
+    mock_generic_base.nth.return_value = mock_first_button
+    mock_page.get_by_role.return_value = mock_generic_base
+
+    # Case 1: Generic locator with index=0 targets the 0th item in DOM order
+    generic_action = ClickAction(role="button", name="Add to cart", index=0)
+    res_generic = await dispatcher.execute(mock_page, generic_action)
+    assert res_generic.success is True
+    mock_page.get_by_role.assert_called_with("button", name="Add to cart", exact=False)
+    mock_generic_base.nth.assert_called_with(0)
+    mock_first_button.click.assert_awaited_once()
+
+    # Case 2: Specific selector supplied alongside role+name
+    mock_specific_loc = MagicMock()
+    mock_specific_loc.click = AsyncMock()
+    mock_page.locator.return_value = mock_specific_loc
+    mock_page.get_by_role.reset_mock()
+
+    specific_action = ClickAction(
+        role="button",
+        name="Add to cart",
+        selector="#add-to-cart-sauce-labs-backpack",
+    )
+    res_specific = await dispatcher.execute(mock_page, specific_action)
+    assert res_specific.success is True
+    # Crucial assertion: specific selector was called, NOT generic get_by_role
+    mock_page.locator.assert_called_once_with("#add-to-cart-sauce-labs-backpack")
+    mock_page.get_by_role.assert_not_called()
+    mock_specific_loc.click.assert_awaited_once()
+    assert "selector='#add-to-cart-sauce-labs-backpack'" in res_specific.resolved_by
