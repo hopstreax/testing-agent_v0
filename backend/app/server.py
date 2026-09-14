@@ -181,9 +181,12 @@ class RunManager:
     """In-memory execution manager coordinating background TestRunner tasks."""
 
     def __init__(self, artifacts_base_dir: Optional[Path] = None) -> None:
-        self.artifacts_base_dir = (
-            Path(artifacts_base_dir or "artifacts/runs").resolve()
-        )
+        if artifacts_base_dir is not None:
+            effective_base = artifacts_base_dir
+        else:
+            env_dir = os.getenv("ARTIFACTS_DIR", "").strip()
+            effective_base = env_dir if env_dir else "artifacts/runs"
+        self.artifacts_base_dir = Path(effective_base).resolve()
         self.artifacts_base_dir.mkdir(parents=True, exist_ok=True)
         self._runs: Dict[str, RunStatusResponse] = {}
         self._tasks: Dict[str, asyncio.Task[Any]] = {}
@@ -437,6 +440,18 @@ def create_app(
     manager = run_manager or RunManager(artifacts_base_dir=artifacts_base_dir)
     app.state.run_manager = manager
     app.state.llm_provider = llm_provider
+
+    # -------------------------------------------------------------------------
+    # Route: Health Probe (GET /api/health)
+    # -------------------------------------------------------------------------
+    @app.get("/api/health")
+    async def health_check() -> Dict[str, str]:
+        """Lightweight operational health probe for container and deployment monitors."""
+        env = os.getenv("ENVIRONMENT", "development").strip().lower() or "development"
+        return {
+            "status": "ok",
+            "environment": env,
+        }
 
     # -------------------------------------------------------------------------
     # Route: Dashboard UI (GET /)

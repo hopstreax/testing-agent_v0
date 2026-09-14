@@ -1,0 +1,22 @@
+# Environment variables and secrets
+.env
+.env.*
+*.env
+
+# Python bytecode and caches
+__pycache__
+*.py[cod]
+*$py.class
+.pytest_cache
+.coverage
+htmlcov
+
+# Local and test artifacts
+artifacts/
+screenshots/
+scratch/
+
+# Git and test files
+.git
+.gitignore
+tests/

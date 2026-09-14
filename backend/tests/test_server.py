@@ -861,3 +861,57 @@ def test_groq_default_model_is_current() -> None:
     assert "openai/gpt-oss-120b" in metadata.models
     assert "openai/gpt-oss-20b" in metadata.models
     assert "qwen/qwen3.6-27b" in metadata.models
+
+
+# ---------------------------------------------------------------------------
+# M10.1: Health endpoint and ARTIFACTS_DIR tests
+# ---------------------------------------------------------------------------
+
+def test_health_endpoint_unauthenticated(client: TestClient) -> None:
+    """GET /api/health returns 200 with status=ok without requiring authentication."""
+    raw_client = TestClient(client.app)
+    # Ensure no cookies
+    raw_client.cookies.clear()
+    resp = raw_client.get("/api/health")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data.get("status") == "ok"
+    assert data.get("environment") == "development"
+
+
+def test_health_endpoint_reflects_production_environment(temp_artifacts_dir: Path) -> None:
+    """GET /api/health reflects production ENVIRONMENT mode."""
+    with patch.dict(os.environ, {"ENVIRONMENT": "production"}):
+        app = create_app(artifacts_base_dir=temp_artifacts_dir)
+        raw_client = TestClient(app)
+        resp = raw_client.get("/api/health")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data.get("status") == "ok"
+        assert data.get("environment") == "production"
+
+
+def test_artifacts_dir_default_when_unset() -> None:
+    """When ARTIFACTS_DIR is unset and no argument is passed, default to artifacts/runs."""
+    with patch.dict(os.environ, {}, clear=True):
+        manager = RunManager()
+        expected = Path("artifacts/runs").resolve()
+        assert manager.artifacts_base_dir == expected
+
+
+def test_artifacts_dir_env_override(tmp_path: Path) -> None:
+    """When ARTIFACTS_DIR is set in environment, RunManager uses it as artifacts_base_dir."""
+    custom_dir = tmp_path / "custom_volume_artifacts"
+    with patch.dict(os.environ, {"ARTIFACTS_DIR": str(custom_dir)}):
+        manager = RunManager()
+        assert manager.artifacts_base_dir == custom_dir.resolve()
+        assert manager.artifacts_base_dir.is_dir()
+
+
+def test_artifacts_dir_explicit_argument_precedence(tmp_path: Path) -> None:
+    """Explicitly passed artifacts_base_dir overrides ARTIFACTS_DIR env variable."""
+    env_dir = tmp_path / "env_artifacts"
+    explicit_dir = tmp_path / "explicit_artifacts"
+    with patch.dict(os.environ, {"ARTIFACTS_DIR": str(env_dir)}):
+        manager = RunManager(artifacts_base_dir=explicit_dir)
+        assert manager.artifacts_base_dir == explicit_dir.resolve()
