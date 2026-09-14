@@ -1,0 +1,81 @@
+name: Backend Container Smoke Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/m10-deployment
+  pull_request:
+    paths:
+      - 'backend/**'
+
+jobs:
+  build-and-smoke-test:
+    name: Build Docker Image and Verify Health & Chromium
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build backend Docker image
+        run: |
+          docker build -t tracekit-backend:test ./backend
+
+      - name: Start container
+        run: |
+          docker run -d \
+            --name tracekit-container \
+            -p 8000:8000 \
+            -e ENVIRONMENT=production \
+            tracekit-backend:test
+
+      - name: Wait for backend and verify health endpoint
+        run: |
+          # Wait for container startup and poll /api/health (up to 30s)
+          curl --retry 15 --retry-delay 2 --retry-connrefused -s http://127.0.0.1:8000/api/health
+
+          RESPONSE=$(curl -fsS http://127.0.0.1:8000/api/health)
+          echo "Health probe response: $RESPONSE"
+
+          # Validate JSON keys using Python
+          python3 -c "import json, sys; data = json.loads(sys.stdin.read()); assert data.get('status') == 'ok', f'Unexpected status: {data}'; assert data.get('environment') == 'production', f'Unexpected environment: {data}'; print('Health verification passed.')" <<< "$RESPONSE"
+
+      - name: Verify Patchright Chromium launches inside container
+        run: |
+          docker exec -i tracekit-container python - << 'EOF'
+          import asyncio
+          import sys
+          from patchright.async_api import async_playwright
+
+          async def smoke_test():
+              print("Initializing Patchright driver...")
+              pw = await async_playwright().start()
+              try:
+                  print("Launching Chromium headless...")
+                  browser = await pw.chromium.launch(headless=True)
+                  page = await browser.new_page()
+                  print("Navigating to https://example.com ...")
+                  await page.goto("https://example.com", timeout=15000)
+                  title = await page.title()
+                  print(f"Page loaded with title: '{title}'")
+                  assert "Example Domain" in title, f"Unexpected title: '{title}'"
+                  print("Chromium assertion passed successfully.")
+                  await browser.close()
+              finally:
+                  await pw.stop()
+
+          if __name__ == "__main__":
+              try:
+                  asyncio.run(smoke_test())
+                  print("Patchright Chromium container smoke test PASSED.")
+              except Exception as exc:
+                  print(f"Patchright Chromium container smoke test FAILED: {exc}", file=sys.stderr)
+                  sys.exit(1)
+          EOF
+
+      - name: Tear down container
+        if: always()
+        run: |
+          docker stop tracekit-container || true
+          docker rm tracekit-container || true
