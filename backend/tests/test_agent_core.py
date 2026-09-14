@@ -290,7 +290,7 @@ async def test_agent_recovers_after_failed_assertion() -> None:
 
 
 async def test_agent_repeated_failed_assertion_stagnation() -> None:
-    """Repeatedly executing the exact same failed assertion on unchanged state triggers stagnation."""
+    """Executing a failed assertion allows one retry; a subsequent repeated failure triggers stagnation."""
     mock_page = make_mock_page()
 
     dispatcher = ActionDispatcher()
@@ -318,6 +318,11 @@ async def test_agent_repeated_failed_assertion_stagnation() -> None:
             decision="Retry asserting button is visible.",
             action=same_assert,
         ),
+        StepDecision(
+            observation_summary="Still looking for button.",
+            decision="Retry asserting button is visible third time.",
+            action=same_assert,
+        ),
     ])
 
     agent = AutonomousTestAgent(llm_provider=provider, dispatcher=dispatcher, max_steps=10)
@@ -325,7 +330,126 @@ async def test_agent_repeated_failed_assertion_stagnation() -> None:
 
     assert result.success is False
     assert result.termination_reason == "stagnation_detected"
-    assert result.steps_executed == 1
+    assert result.steps_executed == 2
+
+
+async def test_agent_failed_action_single_retry_allowed_and_recovers() -> None:
+    """A failed action is allowed one immediate retry; if that retry succeeds, the agent can recover."""
+    mock_page = make_mock_page()
+
+    dispatcher = ActionDispatcher()
+    attempt_count = 0
+
+    async def transient_click_execute(page, action, timeout_ms=None):
+        nonlocal attempt_count
+        if isinstance(action, ClickAction):
+            attempt_count += 1
+            if attempt_count == 1:
+                return ActionResult(
+                    success=False,
+                    action_type="click",
+                    duration_ms=20,
+                    resolved_by="role=button",
+                    error_message="Element is not clickable at point",
+                )
+            mock_page.url = "https://example.com/dashboard"
+            mock_page.aria_snapshot = AsyncMock(return_value="- heading 'Dashboard'")
+            return ActionResult(
+                success=True,
+                action_type="click",
+                duration_ms=20,
+                resolved_by="role=button",
+            )
+        if isinstance(action, AssertAction):
+            return ActionResult(
+                success=True,
+                action_type="assert",
+                duration_ms=10,
+                resolved_by="role=heading",
+            )
+        return await ActionDispatcher.execute(dispatcher, page, action, timeout_ms=timeout_ms)
+
+    dispatcher.execute = transient_click_execute
+
+    click_action = ClickAction(role="button", name="Submit")
+    provider = MockLLMProvider(script=[
+        StepDecision(
+            observation_summary="Button visible.",
+            decision="Click submit button.",
+            action=click_action,
+        ),
+        StepDecision(
+            observation_summary="Button still visible, click failed transiently.",
+            decision="Retry clicking submit button.",
+            action=click_action,
+        ),
+        StepDecision(
+            observation_summary="Form submitted, dashboard visible.",
+            decision="Assert dashboard is visible.",
+            action=AssertAction(assertion_type="visible", role="heading", name="Dashboard"),
+        ),
+        StepDecision(
+            observation_summary="Goal completed.",
+            decision="Finish test.",
+            action=FinishAction(success=True, message="Flow verified successfully."),
+        ),
+    ])
+
+    agent = AutonomousTestAgent(llm_provider=provider, dispatcher=dispatcher, max_steps=10)
+    result = await agent.run(mock_page, goal="Submit form and verify dashboard")
+
+    assert result.success is True
+    assert result.termination_reason == "goal_achieved"
+    assert result.steps_executed == 4
+    assert attempt_count == 2
+    assert result.history[0].result.success is False
+    assert result.history[1].result.success is True
+
+
+async def test_agent_failed_action_retry_exceeded_stagnation() -> None:
+    """Repeated failure beyond the allowed single retry terminates with stagnation_detected."""
+    mock_page = make_mock_page()
+
+    dispatcher = ActionDispatcher()
+
+    async def always_failing_execute(page, action, timeout_ms=None):
+        return ActionResult(
+            success=False,
+            action_type="click",
+            duration_ms=15,
+            resolved_by="role=button",
+            error_message="Button is detached from DOM",
+        )
+
+    dispatcher.execute = always_failing_execute
+
+    click_action = ClickAction(role="button", name="Submit")
+    provider = MockLLMProvider(script=[
+        StepDecision(
+            observation_summary="Button present.",
+            decision="Click submit (attempt 1).",
+            action=click_action,
+        ),
+        StepDecision(
+            observation_summary="Button present.",
+            decision="Retry click submit (attempt 2 - allowed retry).",
+            action=click_action,
+        ),
+        StepDecision(
+            observation_summary="Button present.",
+            decision="Retry click submit (attempt 3 - should trigger stagnation).",
+            action=click_action,
+        ),
+    ])
+
+    agent = AutonomousTestAgent(llm_provider=provider, dispatcher=dispatcher, max_steps=10)
+    result = await agent.run(mock_page, goal="Test retry exhaustion")
+
+    assert result.success is False
+    assert result.termination_reason == "stagnation_detected"
+    assert result.steps_executed == 2
+    assert "identical action 'click' repeated consecutively" in result.message
+
 
 
 async def test_agent_max_steps_exceeded() -> None:

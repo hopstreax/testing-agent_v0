@@ -265,6 +265,8 @@ class AutonomousTestAgent:
 
         last_state_fingerprint = self.compute_state_fingerprint(obs)
         last_action_sig: Optional[Tuple[Any, ...]] = None
+        last_action_success: Optional[bool] = None
+        retry_consumed: bool = False
         consecutive_unchanged_states = 0
         recent_actions_on_same_state: List[Tuple[Tuple[Any, ...], bool]] = []
 
@@ -393,6 +395,8 @@ class AutonomousTestAgent:
                         history.append(record)
                         steps_executed += 1
                         last_action_sig = self.compute_action_signature(action)
+                        last_action_success = False
+                        retry_consumed = False
                         continue
 
             # Safeguard: Immediate action-loop stagnation
@@ -403,22 +407,28 @@ class AutonomousTestAgent:
                 current_fingerprint == last_state_fingerprint
                 and action_sig == last_action_sig
             ):
-                await _safe_page_screenshot(f"step_{step_number:02d}_stagnation.png")
-                elapsed_ms = int((time.perf_counter() - start_time) * 1000)
-                return _finalize(
-                    AgentRunResult(
-                        success=False,
-                        termination_reason="stagnation_detected",
-                        message=(
-                            f"Stagnation detected: identical action '{action.action_type}' "
-                            "repeated consecutively on identical page state."
-                        ),
-                        steps_executed=steps_executed,
-                        history=history,
-                        duration_ms=elapsed_ms,
-                        diagnostics=diag_summary,
+                if last_action_success is False and not retry_consumed:
+                    # Allow exactly one retry of a failed action on identical page state
+                    retry_consumed = True
+                else:
+                    await _safe_page_screenshot(f"step_{step_number:02d}_stagnation.png")
+                    elapsed_ms = int((time.perf_counter() - start_time) * 1000)
+                    return _finalize(
+                        AgentRunResult(
+                            success=False,
+                            termination_reason="stagnation_detected",
+                            message=(
+                                f"Stagnation detected: identical action '{action.action_type}' "
+                                "repeated consecutively on identical page state."
+                            ),
+                            steps_executed=steps_executed,
+                            history=history,
+                            duration_ms=elapsed_ms,
+                            diagnostics=diag_summary,
+                        )
                     )
-                )
+            else:
+                retry_consumed = False
 
             # Dispatch browser action (NavigateAction, ClickAction, FillAction, AssertAction)
             action_res = await self.dispatcher.execute(page, action)
@@ -443,6 +453,7 @@ class AutonomousTestAgent:
             history.append(record)
             steps_executed += 1
             last_action_sig = action_sig
+            last_action_success = action_res.success
 
             # Capture post-action observation
             try:
