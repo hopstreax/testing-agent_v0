@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Sidebar } from "@/components/shell/sidebar";
 import { TopBar } from "@/components/shell/top-bar";
 import { WorkspaceFooter } from "@/components/shell/workspace-footer";
+import { ProtectedRoute } from "@/components/auth/protected-route";
 import { listRuns, RunSummary } from "@/lib/api";
 import {
   Clock,
@@ -114,7 +115,8 @@ export default function RunsPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#090a0c] text-[#f4f4f6]">
+    <ProtectedRoute>
+      <div className="flex min-h-screen bg-[#090a0c] text-[#f4f4f6]">
       {/* Left Navigation Sidebar */}
       <Sidebar
         isOpen={isSidebarOpen}
@@ -365,5 +367,6 @@ export default function RunsPage() {
         <WorkspaceFooter />
       </div>
     </div>
+    </ProtectedRoute>
   );
 }

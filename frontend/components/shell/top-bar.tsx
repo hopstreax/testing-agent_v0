@@ -70,7 +70,11 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
       {/* Right: + New Test CTA & User Profile Icon */}
       <div className="flex items-center gap-3">
         <Link
-          href="/test"
+          href={isLoading ? "#" : isAuthenticated ? "/test" : "/login"}
+          onClick={(e) => {
+            if (isLoading) e.preventDefault();
+          }}
+          aria-busy={isLoading}
           className="inline-flex items-center gap-1.5 rounded-md bg-emerald-400 hover:bg-emerald-300 px-3 py-1.5 text-xs font-semibold text-zinc-950 transition-colors cursor-pointer shadow-xs active:scale-[0.98]"
         >
           <Plus className="h-3.5 w-3.5 stroke-[2.5]" />

@@ -24,13 +24,17 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const { user, isLoading: isAuthLoading, logout } = useAuth();
+  const { user, isAuthenticated, isLoading: isAuthLoading, logout } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const isNewTest = pathname === "/test" || pathname === "/new";
   const isRuns = pathname === "/runs" || pathname.startsWith("/runs/");
   const isSettings = pathname === "/settings";
   const isDocumentation = pathname === "/documentation";
+
+  const newTestHref = isAuthLoading ? "#" : isAuthenticated ? "/test" : "/login";
+  const runsHref = isAuthLoading ? "#" : isAuthenticated ? "/runs" : "/login";
+  const settingsHref = isAuthLoading ? "#" : isAuthenticated ? "/settings" : "/login";
 
   const handleNavClick = () => {
     if (onClose) {
@@ -122,8 +126,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               <nav className="flex flex-col gap-1">
                 {/* New Test */}
                 <Link
-                  href="/test"
-                  onClick={handleNavClick}
+                  href={newTestHref}
+                  onClick={(e) => {
+                    if (isAuthLoading) {
+                      e.preventDefault();
+                      return;
+                    }
+                    handleNavClick();
+                  }}
+                  aria-busy={isAuthLoading}
                   className={cn(
                     "flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
                     isNewTest
@@ -149,8 +160,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
                 {/* Runs */}
                 <Link
-                  href="/runs"
-                  onClick={handleNavClick}
+                  href={runsHref}
+                  onClick={(e) => {
+                    if (isAuthLoading) {
+                      e.preventDefault();
+                      return;
+                    }
+                    handleNavClick();
+                  }}
+                  aria-busy={isAuthLoading}
                   className={cn(
                     "flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors w-full",
                     isRuns
@@ -178,8 +196,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               </div>
               <nav className="flex flex-col gap-1">
                 <Link
-                  href="/settings"
-                  onClick={handleNavClick}
+                  href={settingsHref}
+                  onClick={(e) => {
+                    if (isAuthLoading) {
+                      e.preventDefault();
+                      return;
+                    }
+                    handleNavClick();
+                  }}
+                  aria-busy={isAuthLoading}
                   className={cn(
                     "flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors w-full",
                     isSettings

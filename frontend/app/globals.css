@@ -22,28 +22,6 @@
   --ring: #10b981;
 }
 
-html.light {
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --card: #ffffff;
-  --card-foreground: #0f172a;
-  --popover: #ffffff;
-  --popover-foreground: #0f172a;
-  --primary: #059669;
-  --primary-foreground: #ffffff;
-  --secondary: #f1f5f9;
-  --secondary-foreground: #334155;
-  --muted: #f1f5f9;
-  --muted-foreground: #64748b;
-  --accent: #e2e8f0;
-  --accent-foreground: #059669;
-  --destructive: #ef4444;
-  --destructive-foreground: #ffffff;
-  --border: #e2e8f0;
-  --input: #ffffff;
-  --ring: #059669;
-}
-
 body {
   background-color: var(--background);
   color: var(--foreground);
@@ -51,61 +29,6 @@ body {
   min-height: 100vh;
   overflow-x: hidden;
   color-scheme: dark;
-}
-
-html.light body {
-  color-scheme: light;
-}
-
-/* Light mode coherent surface & typography adaptations */
-html.light .bg-\[\#090a0c\],
-html.light .bg-\[\#08090b\],
-html.light .bg-\[\#07080a\] {
-  background-color: #f8fafc !important;
-}
-
-html.light .bg-\[\#121518\],
-html.light .bg-\[\#161a1e\],
-html.light .bg-\[\#101316\],
-html.light .bg-\[\#0d1013\],
-html.light .bg-\[\#0c0e11\] {
-  background-color: #ffffff !important;
-}
-
-html.light .bg-\[\#08090b\]\/80,
-html.light .bg-\[\#090a0c\]\/90 {
-  background-color: rgba(255, 255, 255, 0.9) !important;
-}
-
-html.light .border-\[\#1f2428\],
-html.light .border-\[\#22272b\],
-html.light .border-\[\#1b1f23\],
-html.light .border-\[\#1e2327\],
-html.light .border-\[\#1a1e22\] {
-  border-color: #e2e8f0 !important;
-}
-
-html.light .text-white {
-  color: #0f172a !important;
-}
-
-html.light .text-zinc-200,
-html.light .text-zinc-300 {
-  color: #1e293b !important;
-}
-
-html.light .text-zinc-400 {
-  color: #475569 !important;
-}
-
-html.light .text-zinc-500 {
-  color: #64748b !important;
-}
-
-html.light input,
-html.light textarea,
-html.light select {
-  color: #0f172a !important;
 }
 
 /* Custom subtle scrollbar for developer tools */
