@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { Sidebar } from "@/components/shell/sidebar";
 import { TopBar } from "@/components/shell/top-bar";
+import { WorkspaceFooter } from "@/components/shell/workspace-footer";
 import { listRuns, RunSummary } from "@/lib/api";
 import {
   Clock,
@@ -359,6 +360,9 @@ export default function RunsPage() {
             )}
           </div>
         </main>
+
+        {/* Compact Workspace Footer */}
+        <WorkspaceFooter />
       </div>
     </div>
   );

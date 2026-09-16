@@ -3,6 +3,7 @@
 import React, { useState, Suspense } from "react";
 import { Sidebar } from "@/components/shell/sidebar";
 import { TopBar } from "@/components/shell/top-bar";
+import { WorkspaceFooter } from "@/components/shell/workspace-footer";
 import { TestLaunchForm } from "@/components/test/test-launch-form";
 
 export default function NewTestPage() {
@@ -30,7 +31,7 @@ export default function NewTestPage() {
                 Autonomous Agent
               </span>
               <span className="font-mono text-xs text-zinc-500">
-                • Local Chromium
+                • Isolated Browser Session
               </span>
             </div>
 
@@ -52,6 +53,9 @@ export default function NewTestPage() {
             </Suspense>
           </div>
         </main>
+
+        {/* Compact Workspace Footer */}
+        <WorkspaceFooter />
       </div>
     </div>
   );

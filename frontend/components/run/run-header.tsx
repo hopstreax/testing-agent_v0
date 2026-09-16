@@ -61,11 +61,11 @@ export function RunHeader({ run, elapsedMs }: RunHeaderProps) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Link
-            href="/test"
+            href="/runs"
             className="inline-flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            <span>New Test</span>
+            <span>Back to Runs</span>
           </Link>
 
           <span className="text-zinc-700 select-none">•</span>

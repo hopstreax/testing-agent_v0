@@ -4,6 +4,7 @@ import React, { use, useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { Sidebar } from "@/components/shell/sidebar";
 import { TopBar } from "@/components/shell/top-bar";
+import { WorkspaceFooter } from "@/components/shell/workspace-footer";
 import { RunHeader } from "@/components/run/run-header";
 import { RunningCard } from "@/components/run/running-card";
 import { FailureDiagnosisCard } from "@/components/run/failure-diagnosis-card";
@@ -231,6 +232,9 @@ export default function RunDetailPage({ params }: PageProps) {
             )}
           </div>
         </main>
+
+        {/* Compact Workspace Footer */}
+        <WorkspaceFooter />
       </div>
 
       {/* Full-resolution Screenshot Lightbox Modal */}
