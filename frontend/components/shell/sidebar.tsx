@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -8,12 +8,14 @@ import {
   Clock,
   SlidersHorizontal,
   BookOpen,
-  Terminal,
   GitBranch,
-  ChevronsUpDown,
   X,
+  LogOut,
+  Loader2,
+  User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/context/auth-context";
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -22,8 +24,31 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const { user, isLoading: isAuthLoading, logout } = useAuth();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
   const isNewTest = pathname === "/test" || pathname === "/new";
   const isRuns = pathname === "/runs" || pathname.startsWith("/runs/");
+  const isSettings = pathname === "/settings";
+  const isDocumentation = pathname === "/documentation";
+
+  const handleNavClick = () => {
+    if (onClose) {
+      onClose();
+    }
+  };
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      if (onClose) {
+        onClose();
+      }
+    } catch {
+      setIsLoggingOut(false);
+    }
+  };
 
   return (
     <>
@@ -46,7 +71,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         <div className="flex flex-col gap-5">
           {/* Brand Header */}
           <div className="flex items-center justify-between px-2 pt-1">
-            <Link href="/" className="flex items-center gap-2.5 group">
+            <Link
+              href="/"
+              onClick={handleNavClick}
+              className="flex items-center gap-2.5 group"
+            >
               {/* Minimal geometric trace mark */}
               <div className="flex h-6 w-6 items-center justify-center rounded-sm bg-emerald-950/80 border border-emerald-500/30 group-hover:border-emerald-500/60 transition-colors">
                 <div className="flex flex-col gap-1 w-3">
@@ -70,20 +99,18 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             </button>
           </div>
 
-          {/* Workspace / Project Selector (UI Scaffolding) */}
-          <button
-            type="button"
-            className="flex items-center justify-between rounded-lg border border-[#22272b] bg-[#121518] px-3 py-2 text-xs transition-colors hover:border-zinc-700/60 hover:bg-[#161a1e] text-left w-full cursor-pointer"
-            title="Active Workspace (UI Scaffolding)"
-          >
+          {/* Active Workspace Static Badge */}
+          <div className="flex items-center justify-between rounded-lg border border-[#22272b] bg-[#121518] px-3 py-2 text-xs">
             <div className="flex items-center gap-2 min-w-0">
               <GitBranch className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-              <span className="truncate font-mono text-[11px] text-zinc-200">
-                production-web <span className="text-zinc-500">/</span> main
+              <span className="truncate font-mono text-[11px] text-zinc-300">
+                production-web <span className="text-zinc-600">/</span> main
               </span>
             </div>
-            <ChevronsUpDown className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
-          </button>
+            <span className="font-mono text-[9px] text-zinc-500 uppercase tracking-wider bg-zinc-900 border border-zinc-800 px-1 py-0.5 rounded">
+              default
+            </span>
+          </div>
 
           {/* Navigation Items */}
           <div className="flex flex-col gap-5 mt-1">
@@ -96,6 +123,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 {/* New Test */}
                 <Link
                   href="/test"
+                  onClick={handleNavClick}
                   className={cn(
                     "flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
                     isNewTest
@@ -122,6 +150,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 {/* Runs */}
                 <Link
                   href="/runs"
+                  onClick={handleNavClick}
                   className={cn(
                     "flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors w-full",
                     isRuns
@@ -139,18 +168,35 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                     <span>Runs</span>
                   </div>
                 </Link>
+              </nav>
+            </div>
 
-                {/* Settings */}
-                <button
-                  type="button"
-                  className="flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40 transition-colors w-full cursor-pointer"
-                  title="Settings (Coming soon)"
+            {/* Settings Section */}
+            <div>
+              <div className="px-2 mb-1.5 text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                Settings
+              </div>
+              <nav className="flex flex-col gap-1">
+                <Link
+                  href="/settings"
+                  onClick={handleNavClick}
+                  className={cn(
+                    "flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors w-full",
+                    isSettings
+                      ? "bg-[#161a1e] border border-zinc-800/80 text-white"
+                      : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40 border border-transparent"
+                  )}
                 >
                   <div className="flex items-center gap-2.5">
-                    <SlidersHorizontal className="h-4 w-4 text-zinc-500" />
+                    <SlidersHorizontal
+                      className={cn(
+                        "h-4 w-4",
+                        isSettings ? "text-emerald-400" : "text-zinc-500"
+                      )}
+                    />
                     <span>Settings</span>
                   </div>
-                </button>
+                </Link>
               </nav>
             </div>
 
@@ -160,64 +206,110 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                 Developer
               </div>
               <nav className="flex flex-col gap-1">
-                <button
-                  type="button"
-                  className="flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40 transition-colors w-full cursor-pointer"
-                  title="Documentation (Coming soon)"
+                <Link
+                  href="/documentation"
+                  onClick={handleNavClick}
+                  className={cn(
+                    "flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors w-full",
+                    isDocumentation
+                      ? "bg-[#161a1e] border border-zinc-800/80 text-white"
+                      : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40 border border-transparent"
+                  )}
                 >
                   <div className="flex items-center gap-2.5">
-                    <BookOpen className="h-4 w-4 text-zinc-500" />
+                    <BookOpen
+                      className={cn(
+                        "h-4 w-4",
+                        isDocumentation ? "text-emerald-400" : "text-zinc-500"
+                      )}
+                    />
                     <span>Documentation</span>
                   </div>
-                </button>
-
-                <button
-                  type="button"
-                  className="flex items-center justify-between rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40 transition-colors w-full cursor-pointer"
-                  title="CLI & API Keys (Coming soon)"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Terminal className="h-4 w-4 text-zinc-500" />
-                    <span>CLI & API Keys</span>
-                  </div>
-                </button>
+                </Link>
               </nav>
             </div>
           </div>
         </div>
 
-        {/* Bottom Section: Agent Status & User Profile */}
+        {/* Bottom Section: Engine Capability & Authenticated User Profile */}
         <div className="flex flex-col gap-3 pt-3 border-t border-[#1f2428]">
-          {/* Static Agent Capability Indicator */}
+          {/* Autonomous Engine Status Indicator */}
           <div className="flex items-center justify-between rounded-md bg-[#101316] border border-[#1e2327] px-2.5 py-2">
             <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
-              <span className="text-[11px] font-medium text-zinc-300">Local Agent</span>
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              <span className="text-[11px] font-medium text-zinc-300">Autonomous Engine</span>
             </div>
             <span className="font-mono text-[10px] font-semibold tracking-wider text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-1.5 py-0.5 rounded">
               READY
             </span>
           </div>
 
-          {/* User Profile Card (Scaffolding) */}
-          <div className="flex items-center justify-between px-1.5 py-1">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-emerald-950/80 border border-emerald-700/50 text-[10px] font-bold text-emerald-400">
-                DK
-              </div>
-              <div className="flex flex-col min-w-0">
-                <span className="truncate text-xs font-medium text-zinc-200">
-                  DevKit Labs
-                </span>
-                <span className="truncate text-[10px] text-zinc-500 font-mono">
-                  Pro Workspace
-                </span>
+          {/* Authenticated User Profile Area */}
+          {isAuthLoading ? (
+            <div className="flex items-center gap-2.5 px-1.5 py-1 animate-pulse">
+              <div className="h-7 w-7 rounded-full bg-zinc-800 shrink-0" />
+              <div className="flex flex-col gap-1 min-w-0 flex-1">
+                <div className="h-3 w-20 bg-zinc-800 rounded" />
+                <div className="h-2 w-28 bg-zinc-800/60 rounded" />
               </div>
             </div>
-            <kbd className="font-mono text-[10px] text-zinc-600 bg-zinc-900 px-1 py-0.5 rounded border border-zinc-800">
-              ⌘K
-            </kbd>
-          </div>
+          ) : user ? (
+            <div className="flex items-center justify-between px-1.5 py-1">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                {user.picture ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={user.picture}
+                    alt={user.name || "User avatar"}
+                    referrerPolicy="no-referrer"
+                    className="h-7 w-7 rounded-full border border-emerald-500/40 object-cover shrink-0"
+                  />
+                ) : (
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-950/80 border border-emerald-700/50 text-[10px] font-bold text-emerald-400">
+                    {(user.name || user.email || "U")[0].toUpperCase()}
+                  </div>
+                )}
+                <div className="flex flex-col min-w-0">
+                  <span className="truncate text-xs font-medium text-zinc-200">
+                    {user.name || "TraceKit User"}
+                  </span>
+                  <span className="truncate text-[10px] text-zinc-500 font-mono">
+                    {user.email || ""}
+                  </span>
+                </div>
+              </div>
+
+              {/* Logout Action Button */}
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                aria-label="Log out"
+                title="Log out"
+                className="rounded p-1 text-zinc-500 hover:text-red-400 transition-colors cursor-pointer shrink-0 ml-1"
+              >
+                {isLoggingOut ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <LogOut className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between px-1.5 py-1 text-xs">
+              <div className="flex items-center gap-2 text-zinc-400">
+                <User className="h-3.5 w-3.5 text-zinc-500" />
+                <span>Guest</span>
+              </div>
+              <Link
+                href="/login"
+                onClick={handleNavClick}
+                className="font-medium text-emerald-400 hover:text-emerald-300 transition-colors text-[11px]"
+              >
+                Sign in
+              </Link>
+            </div>
+          )}
         </div>
       </aside>
     </>
