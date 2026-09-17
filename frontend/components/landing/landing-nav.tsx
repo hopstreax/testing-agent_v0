@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { ArrowRight, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -35,6 +35,7 @@ import { AccountPopover } from "@/components/auth/account-popover";
 export function LandingNav() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const headerRef = useRef<HTMLElement>(null);
   const { user, isAuthenticated, isLoading, logout } = useAuth();
 
   const runTestHref = isLoading ? "#" : isAuthenticated ? "/test" : "/login";
@@ -55,8 +56,36 @@ export function LandingNav() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Dismiss mobile menu on Escape key press or click outside
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      if (headerRef.current && !headerRef.current.contains(e.target as Node)) {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [mobileMenuOpen]);
+
   return (
     <header
+      ref={headerRef}
       className={cn(
         "sticky top-0 z-50 w-full transition-all duration-300 backdrop-blur-md",
         scrolled
@@ -116,7 +145,7 @@ export function LandingNav() {
             <Link
               href="/login"
               id="nav-login"
-              className="text-xs font-medium text-zinc-300 hover:text-white px-2.5 py-1.5 rounded transition-colors focus-visible:outline-none focus-visible:text-[#00e599]"
+              className="text-xs font-medium text-zinc-300 hover:text-white px-2.5 py-1.5 rounded transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#00e599]"
             >
               Login / Sign Up
             </Link>

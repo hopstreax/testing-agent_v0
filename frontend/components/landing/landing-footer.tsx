@@ -5,10 +5,10 @@ import Link from "next/link";
 
 export function LandingFooter() {
   return (
-    <footer className="border-t border-[#1f2428] bg-[#07080a] py-12 text-xs">
+    <footer className="border-t border-[#1b2026] bg-[#08090b] py-12 text-xs">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Main Content Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 pb-10 border-b border-[#1b1f23]">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 pb-10 border-b border-[#1b2026]">
           {/* Brand Column */}
           <div className="md:col-span-6 flex flex-col items-start gap-3">
             <Link

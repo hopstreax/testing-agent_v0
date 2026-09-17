@@ -3,11 +3,13 @@ import { redirect } from "next/navigation";
 import { LandingNav } from "@/components/landing/landing-nav";
 import { HeroSection } from "@/components/landing/hero-section";
 import { CapabilityStrip } from "@/components/landing/capability-strip";
+import { ExecutionLoop } from "@/components/landing/execution-loop";
 import { WorkflowSection } from "@/components/landing/workflow-section";
 import { ComparisonSection } from "@/components/landing/comparison-section";
+import { FailureExplanation } from "@/components/landing/failure-explanation";
+import { EvidenceWorkspace } from "@/components/landing/evidence-workspace";
 import { FinalCTA } from "@/components/landing/final-cta";
 import { LandingFooter } from "@/components/landing/landing-footer";
-import { Reveal } from "@/components/landing/reveal";
 
 export default async function LandingPage(props: {
   searchParams: Promise<{ clone?: string }>;
@@ -18,30 +20,31 @@ export default async function LandingPage(props: {
   }
 
   return (
-    <div className="min-h-screen bg-[#08090b] text-[#f4f4f6] flex flex-col font-sans selection:bg-[#00e599]/30 selection:text-white">
+    <div className="min-h-screen bg-[#08090b] text-[#f4f4f6] flex flex-col font-sans selection:bg-[#00e599]/30 selection:text-white overflow-x-hidden">
       <LandingNav />
       <main className="flex-1 flex flex-col">
+        {/* 1. Hero: Autonomous DevTools Console (Phase 2 Anchor) */}
         <HeroSection />
+
+        {/* 2. Capability Pipeline: Observe -> Act -> Verify -> Explain */}
         <CapabilityStrip />
 
-        {/* Middle Section: Workflow & Comparison */}
-        <section className="py-12 sm:py-16">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-8 items-start">
-              <div className="lg:col-span-7">
-                <Reveal delayMs={50}>
-                  <WorkflowSection />
-                </Reveal>
-              </div>
-              <div className="lg:col-span-5">
-                <Reveal delayMs={150}>
-                  <ComparisonSection />
-                </Reveal>
-              </div>
-            </div>
-          </div>
-        </section>
+        {/* 3. The Signature Execution Loop: AI Agent -> Browser -> Deterministic Verification */}
+        <ExecutionLoop />
 
+        {/* 4. Interactive Execution Timeline: Watching one test run unfold */}
+        <WorkflowSection />
+
+        {/* 5. Two Testing Loops: Traditional brittle loop vs TraceKit autonomous loop */}
+        <ComparisonSection />
+
+        {/* 6. Deterministic Failure Diagnosis: Explaining root cause, not just red X */}
+        <FailureExplanation />
+
+        {/* 7. Developer Investigation Workspace: StepsTrace, AssertionsTable, VisualEvidence */}
+        <EvidenceWorkspace />
+
+        {/* 8. Restrained Large Typography Conclusion & CTA */}
         <FinalCTA />
       </main>
       <LandingFooter />
