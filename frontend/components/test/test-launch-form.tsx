@@ -1,23 +1,22 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Link as LinkIcon,
   Sparkles,
-  History,
   Play,
   Loader2,
   AlertCircle,
   Copy,
+  Terminal,
 } from "lucide-react";
 import { QuickPrompts } from "./quick-prompts";
 import { AdvancedSettings } from "./advanced-settings";
 import { launchRun, getRun } from "@/lib/api";
 
-const DEFAULT_URL = "https://demo.vercel.store/products/archive";
-const DEFAULT_PROMPT =
-  'Search for "Technical Shell Jacket", apply the sizing filter "XL", add product to cart, proceed to checkout page, and ensure the price calculation includes zero shipping fees.';
+const DEFAULT_URL = "";
+const DEFAULT_PROMPT = "";
 const DEFAULT_HEADLESS = true;
 const DEFAULT_MAX_STEPS = 15;
 const DEFAULT_STORAGE_STATE = "";
@@ -28,6 +27,8 @@ export function TestLaunchForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const cloneRunId = searchParams.get("clone");
+
+  const formRef = useRef<HTMLFormElement>(null);
 
   const [url, setUrl] = useState(DEFAULT_URL);
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
@@ -41,6 +42,25 @@ export function TestLaunchForm() {
   const [clonedRunId, setClonedRunId] = useState<string | null>(null);
   const [isLoadingClone, setIsLoadingClone] = useState(false);
 
+  // Global keyboard shortcut: Cmd+Enter on macOS, Ctrl+Enter on Windows/Linux
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        if (isSubmitting) return;
+        e.preventDefault();
+        if (formRef.current) {
+          formRef.current.requestSubmit();
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isSubmitting]);
+
+  // Handle clone prefill if ?clone=<run_id> is in query
   useEffect(() => {
     if (!cloneRunId) return;
 
@@ -78,7 +98,6 @@ export function TestLaunchForm() {
         setClonedRunId(run.run_id);
         setError(null);
       } catch (err: unknown) {
-        // Handle invalid clone ID gracefully without crashing the form
         if (!isMounted) return;
         console.warn("Could not prefill from clone ID:", err);
       } finally {
@@ -93,6 +112,7 @@ export function TestLaunchForm() {
     };
   }, [cloneRunId]);
 
+  // Fix: Reset keeps user inside the New Test workspace instead of landing page
   const handleReset = () => {
     setUrl(DEFAULT_URL);
     setPrompt(DEFAULT_PROMPT);
@@ -103,7 +123,7 @@ export function TestLaunchForm() {
     setModel(DEFAULT_MODEL);
     setClonedRunId(null);
     setError(null);
-    router.replace("/");
+    router.replace("/test");
   };
 
   const handleSelectPrompt = (promptText: string) => {
@@ -168,36 +188,68 @@ export function TestLaunchForm() {
 
   return (
     <form
+      ref={formRef}
       onSubmit={handleSubmit}
-      className="rounded-xl border border-[#22272b] bg-[#121518] p-5 sm:p-6 shadow-2xl relative"
+      className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-8 xl:gap-10 items-start"
     >
-      <div className="flex flex-col gap-5">
-        {/* Error Alert if Submission Fails */}
+      {/* ================================================================= */}
+      {/* LEFT / PRIMARY COLUMN: Test Configuration & Studio Editor         */}
+      {/* ================================================================= */}
+      <div className="flex flex-col gap-6 lg:col-span-7 xl:col-span-8">
+        {/* Page Eyebrow Metadata */}
+        <div className="flex items-center gap-2">
+          <div className="inline-flex items-center gap-2 rounded-md border border-[#1b2026] bg-[#0d1013] px-2.5 py-1 font-mono text-[11px] text-zinc-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#00e599] animate-pulse-mint" />
+            <span className="text-[#00e599] font-medium uppercase tracking-wider">
+              Autonomous Agent
+            </span>
+            <span className="text-zinc-600">/</span>
+            <span className="text-zinc-400">Isolated Browser Studio</span>
+          </div>
+        </div>
+
+        {/* Studio Heading & Description */}
+        <div>
+          <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold tracking-[-0.03em] text-white">
+            Test your application
+          </h1>
+          <p className="mt-2 text-xs sm:text-sm leading-relaxed text-zinc-400 max-w-2xl">
+            Describe an autonomous user journey in plain English. The agent inspects
+            the DOM, reasons through interactions, and executes deterministic
+            verifications.
+          </p>
+        </div>
+
+        {/* Feedback: Submission Error Alert */}
         {error && (
-          <div className="flex items-start gap-2.5 rounded-lg border border-red-900/60 bg-red-950/40 p-3 text-xs text-red-300 animate-in fade-in-50">
+          <div
+            role="alert"
+            className="flex items-start gap-3 rounded-lg border border-red-900/60 bg-red-950/40 p-3.5 text-xs text-red-300 animate-in fade-in-50"
+          >
             <AlertCircle className="h-4 w-4 shrink-0 text-red-400 mt-0.5" />
-            <div className="flex-1">
+            <div className="flex-1 leading-relaxed">
               <span className="font-semibold text-red-200">Launch Error: </span>
               <span>{error}</span>
             </div>
           </div>
         )}
 
-        {/* Clone Context Indicator */}
+        {/* Feedback: Clone Loading Indicator */}
         {isLoadingClone && (
-          <div className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 text-xs text-zinc-400 animate-in fade-in-50">
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-emerald-400" />
+          <div className="flex items-center gap-2 rounded-lg border border-[#1b2026] bg-[#0d1013] px-3.5 py-2.5 text-xs text-zinc-400 animate-in fade-in-50">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-[#00e599]" />
             <span>Loading cloned run configuration...</span>
           </div>
         )}
 
+        {/* Feedback: Cloned Run Context Banner */}
         {clonedRunId && !isLoadingClone && (
-          <div className="flex items-center justify-between rounded-lg border border-emerald-900/60 bg-emerald-950/30 px-3 py-2 text-xs text-zinc-300 animate-in fade-in-50">
+          <div className="flex items-center justify-between rounded-lg border border-[#00e599]/30 bg-[#00e599]/5 px-3.5 py-2.5 text-xs text-zinc-300 animate-in fade-in-50">
             <div className="flex items-center gap-2 min-w-0">
-              <Copy className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+              <Copy className="h-3.5 w-3.5 text-[#00e599] shrink-0" />
               <span className="truncate">
                 Cloned from run{" "}
-                <span className="font-mono text-emerald-300 font-medium">
+                <span className="font-mono text-[#00e599] font-medium">
                   {clonedRunId}
                 </span>
               </span>
@@ -206,22 +258,34 @@ export function TestLaunchForm() {
               type="button"
               onClick={handleReset}
               id="reset-clone-btn"
-              className="ml-3 shrink-0 text-[11px] font-medium text-zinc-400 hover:text-white underline cursor-pointer transition-colors"
+              className="ml-3 shrink-0 font-mono text-[11px] font-medium text-zinc-400 hover:text-white underline cursor-pointer transition-colors"
             >
               Reset
             </button>
           </div>
         )}
 
-        {/* Section 1: TARGET URL */}
+        {/* SECTION 1: TARGET URL */}
         <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wider text-emerald-400 uppercase select-none">
-            <LinkIcon className="h-3.5 w-3.5" />
-            <span>Target URL</span>
+          <div className="flex items-center justify-between select-none">
+            <label
+              htmlFor="target-url-input"
+              className="flex items-center gap-1.5 font-mono text-[11px] font-semibold tracking-wider text-[#00e599] uppercase"
+            >
+              <LinkIcon className="h-3.5 w-3.5" />
+              <span>Target URL</span>
+            </label>
+            <span className="font-mono text-[10px] text-zinc-500">
+              HTTP or HTTPS required
+            </span>
           </div>
 
-          <div className="relative flex items-center">
+          <div className="relative flex items-center rounded-lg border border-[#1b2026] bg-[#0d1013] focus-within:border-[#00e599]/60 focus-within:ring-1 focus-within:ring-[#00e599]/30 transition-all">
+            <div className="flex h-11 items-center px-3.5 border-r border-[#1b2026] bg-[#121518]/50 text-zinc-500 font-mono text-xs select-none">
+              URL
+            </div>
             <input
+              id="target-url-input"
               type="url"
               required
               disabled={isSubmitting}
@@ -230,54 +294,26 @@ export function TestLaunchForm() {
                 setUrl(e.target.value);
                 if (error) setError(null);
               }}
-              placeholder="https://your-app.com"
-              className="h-10 w-full rounded-lg border border-[#22272b] bg-[#0c0e10] px-3.5 pr-10 font-mono text-xs sm:text-sm text-zinc-100 placeholder:text-zinc-600 transition-colors focus:border-emerald-500/60 focus:outline-none focus:ring-1 focus:ring-emerald-500/30 disabled:opacity-60"
+              placeholder="https://your-app.com/path"
+              className="h-11 w-full bg-transparent px-3.5 font-mono text-xs sm:text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none disabled:opacity-60"
             />
-            <button
-              type="button"
-              className="absolute right-3 text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
-              title="Recent target URLs"
-            >
-              <History className="h-4 w-4" />
-            </button>
           </div>
         </div>
 
-        {/* Section 2: OBJECTIVE PROMPT */}
+        {/* SECTION 2: OBJECTIVE STUDIO (MAIN VISUAL FOCUS) */}
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between select-none">
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wider text-emerald-400 uppercase">
+            <label
+              htmlFor="objective-prompt-input"
+              className="flex items-center gap-1.5 font-mono text-[11px] font-semibold tracking-wider text-[#00e599] uppercase"
+            >
               <Sparkles className="h-3.5 w-3.5" />
-              <span>Objective Prompt</span>
-            </div>
-            <span className="font-mono text-xs text-zinc-500">
-              {prompt.length} chars
-            </span>
-          </div>
-
-          <div className="rounded-lg border border-[#22272b] bg-[#0c0e10] p-3 transition-colors focus-within:border-emerald-500/60 focus-within:ring-1 focus-within:ring-emerald-500/30">
-            <textarea
-              required
-              rows={4}
-              disabled={isSubmitting}
-              value={prompt}
-              onChange={(e) => {
-                setPrompt(e.target.value);
-                if (error) setError(null);
-              }}
-              placeholder="Describe what you want tested..."
-              className="w-full resize-none bg-transparent text-xs sm:text-sm leading-relaxed text-zinc-100 placeholder:text-zinc-600 focus:outline-none disabled:opacity-60"
-            />
-
-            {/* Prompt Card Footer Controls */}
-            <div className="mt-2 flex items-center justify-between border-t border-[#1a1e22] pt-2 text-[11px]">
-              <div className="flex items-center gap-1.5 text-zinc-500 font-mono">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500/80 inline-block" />
-                <span className="text-[10px] text-zinc-400">
-                  Deterministic assertion engine active
-                </span>
-              </div>
-
+              <span>Objective Studio</span>
+            </label>
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-xs text-zinc-500">
+                {prompt.length} chars
+              </span>
               {prompt.length > 0 && !isSubmitting && (
                 <button
                   type="button"
@@ -289,12 +325,82 @@ export function TestLaunchForm() {
               )}
             </div>
           </div>
+
+          <div className="rounded-xl border border-[#1b2026] bg-[#0d1013] p-3.5 sm:p-4 transition-all focus-within:border-[#00e599]/60 focus-within:ring-1 focus-within:ring-[#00e599]/30">
+            <textarea
+              id="objective-prompt-input"
+              required
+              rows={7}
+              disabled={isSubmitting}
+              value={prompt}
+              onChange={(e) => {
+                setPrompt(e.target.value);
+                if (error) setError(null);
+              }}
+              placeholder='Describe what you want tested in natural language. (e.g. "Navigate to /store, filter by category Outerwear, add product in size XL to cart, proceed to checkout, and verify zero shipping fee is calculated.")'
+              className="w-full min-h-[160px] sm:min-h-[200px] resize-y bg-transparent text-xs sm:text-sm leading-relaxed text-zinc-100 placeholder:text-zinc-600 focus:outline-none disabled:opacity-60"
+            />
+
+            {/* Objective Card Footer */}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#1b2026] pt-2.5 text-[11px]">
+              <div className="flex items-center gap-2 text-zinc-400 font-mono">
+                <span className="h-1.5 w-1.5 rounded-full bg-[#00e599]" />
+                <span className="text-[11px] text-zinc-400">
+                  Deterministic assertion engine active
+                </span>
+              </div>
+              <span className="font-mono text-[10px] text-zinc-500 hidden sm:inline">
+                Supports natural language or bulleted steps
+              </span>
+            </div>
+          </div>
         </div>
 
-        {/* Section 3: QUICK PROMPTS CHIPS */}
-        <QuickPrompts onSelectPrompt={handleSelectPrompt} />
+        {/* SECTION 3: STARTER TEMPLATES */}
+        <QuickPrompts onSelectPrompt={handleSelectPrompt} disabled={isSubmitting} />
 
-        {/* Section 4: ADVANCED SETTINGS COLLAPSIBLE */}
+        {/* SECTION 4: PRIMARY SUBMIT & RUN BAR */}
+        <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-t border-[#1b2026] pt-5">
+          {/* Agent Readiness Status */}
+          <div className="flex items-center gap-2.5 select-none">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00e599] opacity-40" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#00e599]" />
+            </span>
+            <div className="flex flex-col">
+              <span className="text-xs font-medium text-zinc-200">Local agent ready</span>
+              <span className="font-mono text-[10px] text-zinc-500">Autonomous single-journey runner</span>
+            </div>
+          </div>
+
+          {/* Primary Submit Action */}
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="inline-flex items-center justify-center gap-2.5 rounded-lg bg-[#00e599] hover:bg-[#00f5a0] disabled:opacity-60 px-6 py-2.5 text-sm font-semibold text-[#08090b] shadow-md hover:shadow-[#00e599]/20 active:scale-[0.98] transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00e599]"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin text-[#08090b]" />
+                <span>Launching Run...</span>
+              </>
+            ) : (
+              <>
+                <Play className="h-4 w-4 fill-[#08090b] text-[#08090b]" />
+                <span>Run test</span>
+                <kbd className="ml-1 rounded bg-[#08090b]/15 px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#08090b]">
+                  ⌘⏎
+                </kbd>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* ================================================================= */}
+      {/* RIGHT / SIDECAR COLUMN: Pre-Flight Control Panel & Parameters      */}
+      {/* ================================================================= */}
+      <div className="lg:col-span-5 xl:col-span-4 sticky top-20">
         <AdvancedSettings
           browser="chromium"
           headless={headless}
@@ -302,43 +408,13 @@ export function TestLaunchForm() {
           storageStatePath={storageStatePath}
           provider={provider}
           model={model}
+          targetUrl={url}
           onHeadlessChange={setHeadless}
           onMaxStepsChange={setMaxSteps}
           onStorageStatePathChange={setStorageStatePath}
           onProviderChange={setProvider}
           onModelChange={setModel}
         />
-
-        {/* Section 5: FORM FOOTER & RUN BUTTON */}
-        <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t border-[#1f2428] pt-4">
-          {/* Agent Status */}
-          <div className="flex items-center gap-2 text-xs text-zinc-400 font-medium select-none">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            <span>Local agent ready</span>
-          </div>
-
-          {/* Primary Action Button */}
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-400 hover:bg-emerald-300 disabled:bg-emerald-800 disabled:opacity-60 px-5 py-2.5 text-sm font-semibold text-zinc-950 shadow-md hover:shadow-emerald-950/30 active:scale-[0.98] transition-all cursor-pointer"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin text-zinc-950" />
-                <span>Launching...</span>
-              </>
-            ) : (
-              <>
-                <Play className="h-4 w-4 fill-zinc-950" />
-                <span>Run test</span>
-                <kbd className="ml-1 rounded bg-emerald-500/40 px-1.5 py-0.5 font-mono text-[10px] font-bold text-zinc-900">
-                  ⌘⏎
-                </kbd>
-              </>
-            )}
-          </button>
-        </div>
       </div>
     </form>
   );

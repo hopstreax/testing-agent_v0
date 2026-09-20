@@ -12,7 +12,7 @@ export default function NewTestPage() {
 
   return (
     <ProtectedRoute>
-      <div className="flex min-h-screen bg-[#090a0c] text-[#f4f4f6]">
+      <div className="flex min-h-screen bg-[#08090b] text-[#f4f4f6]">
         {/* Left Navigation Sidebar */}
         <Sidebar
           isOpen={isSidebarOpen}
@@ -24,33 +24,27 @@ export default function NewTestPage() {
           {/* Top Bar */}
           <TopBar onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)} />
 
-          {/* New Test Workspace */}
-          <main className="flex-1 overflow-y-auto px-4 py-8 sm:px-8 lg:px-12">
-            <div className="mx-auto max-w-3xl">
-              {/* Header Metadata Pill */}
-              <div className="mb-4 flex items-center gap-2">
-                <span className="inline-flex items-center rounded bg-emerald-950/70 border border-emerald-800/50 px-2 py-0.5 font-mono text-[10px] font-semibold tracking-wider text-emerald-400 uppercase">
-                  Autonomous Agent
-                </span>
-                <span className="font-mono text-xs text-zinc-500">
-                  • Isolated Browser Session
-                </span>
-              </div>
+          {/* New Test Studio Workspace */}
+          <main className="relative flex-1 overflow-y-auto px-4 py-8 sm:px-6 lg:px-8 xl:px-10">
+            {/* Subtle background dot-grid texture matching TraceKit visual identity */}
+            <div
+              className="pointer-events-none absolute inset-0 opacity-[0.025]"
+              style={{
+                backgroundImage:
+                  "radial-gradient(#00e599 1px, transparent 1px), radial-gradient(#00e599 1px, #08090b 1px)",
+                backgroundSize: "28px 28px",
+                backgroundPosition: "0 0, 14px 14px",
+              }}
+              aria-hidden="true"
+            />
 
-              {/* Main Title and Description */}
-              <div className="mb-8">
-                <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight text-white">
-                  Test your application
-                </h1>
-                <p className="mt-2 text-xs sm:text-sm leading-relaxed text-zinc-400 max-w-2xl">
-                  Describe an autonomous user journey in plain English. The agent inspects
-                  the DOM, reasons through interactions, and executes deterministic
-                  verifications.
-                </p>
-              </div>
-
-              {/* Primary Test Launch Form */}
-              <Suspense fallback={<div className="h-64 animate-pulse rounded-xl bg-[#121518] border border-[#22272b]" />}>
+            <div className="relative mx-auto max-w-7xl">
+              {/* Primary Test Launch Studio */}
+              <Suspense
+                fallback={
+                  <div className="h-96 animate-pulse rounded-xl bg-[#0d1013] border border-[#1b2026]" />
+                }
+              >
                 <TestLaunchForm />
               </Suspense>
             </div>
