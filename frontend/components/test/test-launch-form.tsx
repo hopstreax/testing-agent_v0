@@ -9,7 +9,6 @@ import {
   Loader2,
   AlertCircle,
   Copy,
-  Terminal,
 } from "lucide-react";
 import { QuickPrompts } from "./quick-prompts";
 import { AdvancedSettings } from "./advanced-settings";
@@ -198,22 +197,24 @@ export function TestLaunchForm() {
       <div className="flex flex-col gap-6 lg:col-span-7 xl:col-span-8">
         {/* Page Eyebrow Metadata */}
         <div className="flex items-center gap-2">
-          <div className="inline-flex items-center gap-2 rounded-md border border-[#1b2026] bg-[#0d1013] px-2.5 py-1 font-mono text-[11px] text-zinc-400">
+          <div className="inline-flex items-center gap-2 rounded-md border border-[#1b2026] bg-[#0d1013]/90 px-3 py-1 font-mono text-[11px] text-zinc-400 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.02)]">
             <span className="h-1.5 w-1.5 rounded-full bg-[#00e599] animate-pulse-mint" />
-            <span className="text-[#00e599] font-medium uppercase tracking-wider">
+            <span className="text-[#00e599] font-medium tracking-wider uppercase">
               Autonomous Agent
             </span>
             <span className="text-zinc-600">/</span>
-            <span className="text-zinc-400">Isolated Browser Studio</span>
+            <span className="text-zinc-400 uppercase tracking-wider">
+              Isolated Browser Studio
+            </span>
           </div>
         </div>
 
         {/* Studio Heading & Description */}
-        <div>
-          <h1 className="font-display text-2xl sm:text-3xl lg:text-4xl font-bold tracking-[-0.03em] text-white">
+        <div className="flex flex-col gap-2">
+          <h1 className="font-display text-2xl sm:text-3xl lg:text-[36px] font-bold tracking-[-0.035em] text-white leading-[1.12]">
             Test your application
           </h1>
-          <p className="mt-2 text-xs sm:text-sm leading-relaxed text-zinc-400 max-w-2xl">
+          <p className="text-xs sm:text-sm leading-relaxed text-zinc-400 max-w-2xl font-normal">
             Describe an autonomous user journey in plain English. The agent inspects
             the DOM, reasons through interactions, and executes deterministic
             verifications.
@@ -244,7 +245,7 @@ export function TestLaunchForm() {
 
         {/* Feedback: Cloned Run Context Banner */}
         {clonedRunId && !isLoadingClone && (
-          <div className="flex items-center justify-between rounded-lg border border-[#00e599]/30 bg-[#00e599]/5 px-3.5 py-2.5 text-xs text-zinc-300 animate-in fade-in-50">
+          <div className="flex items-center justify-between rounded-lg border border-[#00e599]/30 bg-[#00e599]/5 px-3.5 py-2.5 text-xs text-zinc-300 animate-in fade-in-50 shadow-[inset_0_1px_0_0_rgba(0,229,153,0.05)]">
             <div className="flex items-center gap-2 min-w-0">
               <Copy className="h-3.5 w-3.5 text-[#00e599] shrink-0" />
               <span className="truncate">
@@ -280,8 +281,8 @@ export function TestLaunchForm() {
             </span>
           </div>
 
-          <div className="relative flex items-center rounded-lg border border-[#1b2026] bg-[#0d1013] focus-within:border-[#00e599]/60 focus-within:ring-1 focus-within:ring-[#00e599]/30 transition-all">
-            <div className="flex h-11 items-center px-3.5 border-r border-[#1b2026] bg-[#121518]/50 text-zinc-500 font-mono text-xs select-none">
+          <div className="group relative flex items-center rounded-lg border border-[#1b2026] bg-[#0d1013] transition-all duration-150 focus-within:border-[#00e599]/60 focus-within:ring-1 focus-within:ring-[#00e599]/25 focus-within:shadow-[0_0_16px_rgba(0,229,153,0.06)] hover:border-[#272f38]">
+            <div className="flex h-11 items-center px-3.5 border-r border-[#1b2026] bg-[#121518]/60 text-zinc-500 font-mono text-xs select-none group-focus-within:border-[#00e599]/40 group-focus-within:text-[#00e599]/80 transition-colors">
               URL
             </div>
             <input
@@ -326,11 +327,11 @@ export function TestLaunchForm() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-[#1b2026] bg-[#0d1013] p-3.5 sm:p-4 transition-all focus-within:border-[#00e599]/60 focus-within:ring-1 focus-within:ring-[#00e599]/30">
+          <div className="rounded-xl border border-[#1b2026] bg-[#0d1013] p-4 sm:p-5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.02)] transition-all duration-150 focus-within:border-[#00e599]/50 focus-within:ring-1 focus-within:ring-[#00e599]/20 focus-within:shadow-[0_0_24px_rgba(0,229,153,0.04)] hover:border-[#272f38]">
             <textarea
               id="objective-prompt-input"
               required
-              rows={7}
+              rows={8}
               disabled={isSubmitting}
               value={prompt}
               onChange={(e) => {
@@ -338,19 +339,19 @@ export function TestLaunchForm() {
                 if (error) setError(null);
               }}
               placeholder='Describe what you want tested in natural language. (e.g. "Navigate to /store, filter by category Outerwear, add product in size XL to cart, proceed to checkout, and verify zero shipping fee is calculated.")'
-              className="w-full min-h-[160px] sm:min-h-[200px] resize-y bg-transparent text-xs sm:text-sm leading-relaxed text-zinc-100 placeholder:text-zinc-600 focus:outline-none disabled:opacity-60"
+              className="w-full min-h-[190px] sm:min-h-[230px] resize-y bg-[#121518]/60 border border-[#1b2026]/80 rounded-lg p-3.5 sm:p-4 text-xs sm:text-sm leading-relaxed text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:border-[#00e599]/50 focus:ring-1 focus:ring-[#00e599]/20 transition-all disabled:opacity-60"
             />
 
             {/* Objective Card Footer */}
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#1b2026] pt-2.5 text-[11px]">
+            <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2 border-t border-[#1b2026] pt-3 text-[11px]">
               <div className="flex items-center gap-2 text-zinc-400 font-mono">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#00e599]" />
+                <span className="h-1.5 w-1.5 rounded-full bg-[#00e599] animate-pulse-mint" />
                 <span className="text-[11px] text-zinc-400">
                   Deterministic assertion engine active
                 </span>
               </div>
               <span className="font-mono text-[10px] text-zinc-500 hidden sm:inline">
-                Supports natural language or bulleted steps
+                Supports natural language or bulleted steps • ⌘⏎ to launch
               </span>
             </div>
           </div>
@@ -360,16 +361,20 @@ export function TestLaunchForm() {
         <QuickPrompts onSelectPrompt={handleSelectPrompt} disabled={isSubmitting} />
 
         {/* SECTION 4: PRIMARY SUBMIT & RUN BAR */}
-        <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-t border-[#1b2026] pt-5">
+        <div className="mt-1 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-t border-[#1b2026] pt-5">
           {/* Agent Readiness Status */}
-          <div className="flex items-center gap-2.5 select-none">
+          <div className="flex items-center gap-3 select-none">
             <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00e599] opacity-40" />
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00e599] opacity-35" />
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#00e599]" />
             </span>
             <div className="flex flex-col">
-              <span className="text-xs font-medium text-zinc-200">Local agent ready</span>
-              <span className="font-mono text-[10px] text-zinc-500">Autonomous single-journey runner</span>
+              <span className="text-xs font-semibold text-zinc-200">
+                Local agent ready
+              </span>
+              <span className="font-mono text-[10px] text-zinc-500">
+                Autonomous single-journey runner
+              </span>
             </div>
           </div>
 
@@ -377,7 +382,7 @@ export function TestLaunchForm() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="inline-flex items-center justify-center gap-2.5 rounded-lg bg-[#00e599] hover:bg-[#00f5a0] disabled:opacity-60 px-6 py-2.5 text-sm font-semibold text-[#08090b] shadow-md hover:shadow-[#00e599]/20 active:scale-[0.98] transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00e599]"
+            className="group inline-flex h-11 items-center justify-center gap-2.5 rounded-lg bg-[#00e599] hover:bg-[#00f5a0] disabled:opacity-50 disabled:pointer-events-none px-6 text-sm font-semibold text-[#08090b] shadow-md shadow-[#00e599]/15 hover:shadow-lg hover:shadow-[#00e599]/25 active:scale-[0.98] transition-all duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00e599] focus-visible:ring-offset-2 focus-visible:ring-offset-[#08090b]"
           >
             {isSubmitting ? (
               <>
@@ -386,7 +391,7 @@ export function TestLaunchForm() {
               </>
             ) : (
               <>
-                <Play className="h-4 w-4 fill-[#08090b] text-[#08090b]" />
+                <Play className="h-4 w-4 fill-[#08090b] text-[#08090b] transition-transform group-hover:scale-105" />
                 <span>Run test</span>
                 <kbd className="ml-1 rounded bg-[#08090b]/15 px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#08090b]">
                   ⌘⏎

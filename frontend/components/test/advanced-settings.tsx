@@ -9,8 +9,6 @@ import {
   Cpu,
   Layers,
   Clock,
-  Shield,
-  CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ProviderMetadata, getProviders } from "@/lib/api";
@@ -140,9 +138,9 @@ export function AdvancedSettings({
     : null;
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-[#1b2026] bg-[#0d1013] p-4 sm:p-5">
+    <div className="flex flex-col gap-4 rounded-xl border border-[#1b2026] bg-[#0d1013] p-4 sm:p-5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.02)]">
       {/* Control Panel Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between select-none">
         <div className="flex items-center gap-2">
           <SlidersHorizontal className="h-4 w-4 text-[#00e599]" />
           <h2 className="font-display text-sm font-semibold text-white tracking-tight">
@@ -159,9 +157,9 @@ export function AdvancedSettings({
       </p>
 
       {/* Scannable Pre-Flight Specifications (Always visible) */}
-      <div className="flex flex-col divide-y divide-[#1b2026] rounded-lg border border-[#1b2026] bg-[#121518]/60">
+      <div className="flex flex-col divide-y divide-[#1b2026] rounded-lg border border-[#1b2026] bg-[#121518]/60 overflow-hidden">
         {/* Row 1: Browser Engine */}
-        <div className="flex items-center justify-between p-2.5 text-xs">
+        <div className="flex items-center justify-between px-3 py-2.5 text-xs transition-colors hover:bg-[#161a1f]/50">
           <div className="flex items-center gap-2">
             <Monitor className="h-3.5 w-3.5 text-[#00e599]" />
             <span className="font-mono text-[11px] text-zinc-400">Engine</span>
@@ -175,7 +173,7 @@ export function AdvancedSettings({
         </div>
 
         {/* Row 2: Display Mode */}
-        <div className="flex items-center justify-between p-2.5 text-xs">
+        <div className="flex items-center justify-between px-3 py-2.5 text-xs transition-colors hover:bg-[#161a1f]/50">
           <div className="flex items-center gap-2">
             <Layers className="h-3.5 w-3.5 text-zinc-400" />
             <span className="font-mono text-[11px] text-zinc-400">Display</span>
@@ -198,7 +196,7 @@ export function AdvancedSettings({
         </div>
 
         {/* Row 3: Step Budget */}
-        <div className="flex items-center justify-between p-2.5 text-xs">
+        <div className="flex items-center justify-between px-3 py-2.5 text-xs transition-colors hover:bg-[#161a1f]/50">
           <div className="flex items-center gap-2">
             <Clock className="h-3.5 w-3.5 text-zinc-400" />
             <span className="font-mono text-[11px] text-zinc-400">Budget</span>
@@ -212,7 +210,7 @@ export function AdvancedSettings({
         </div>
 
         {/* Row 4: AI Reasoning */}
-        <div className="flex items-center justify-between p-2.5 text-xs">
+        <div className="flex items-center justify-between px-3 py-2.5 text-xs transition-colors hover:bg-[#161a1f]/50">
           <div className="flex items-center gap-2">
             <Cpu className="h-3.5 w-3.5 text-zinc-400" />
             <span className="font-mono text-[11px] text-zinc-400">Reasoning</span>
@@ -226,7 +224,7 @@ export function AdvancedSettings({
         </div>
 
         {/* Row 5: Authentication Session */}
-        <div className="flex items-center justify-between p-2.5 text-xs">
+        <div className="flex items-center justify-between px-3 py-2.5 text-xs transition-colors hover:bg-[#161a1f]/50">
           <div className="flex items-center gap-2">
             <KeyRound className="h-3.5 w-3.5 text-zinc-400" />
             <span className="font-mono text-[11px] text-zinc-400">Session</span>
@@ -256,7 +254,7 @@ export function AdvancedSettings({
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center justify-between rounded-lg border border-[#1b2026] bg-[#121518] px-3.5 py-2 text-left text-xs text-zinc-300 hover:bg-[#161a1e] hover:text-white transition-colors cursor-pointer select-none"
+        className="flex items-center justify-between rounded-lg border border-[#1b2026] bg-[#121518] px-3.5 py-2.5 text-left text-xs text-zinc-300 hover:bg-[#161a1e] hover:text-white hover:border-[#272f38] transition-all cursor-pointer select-none"
         aria-expanded={isOpen}
       >
         <span className="font-mono text-[11px] font-medium">
@@ -433,7 +431,7 @@ export function AdvancedSettings({
       )}
 
       {/* Launch Readiness Summary Box */}
-      <div className="rounded-lg border border-[#1b2026] bg-[#121518]/30 p-3 flex flex-col gap-2">
+      <div className="rounded-lg border border-[#1b2026] bg-[#121518]/40 p-3 flex flex-col gap-2.5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.02)]">
         <div className="flex items-center justify-between">
           <span className="font-mono text-[10px] text-zinc-500 uppercase tracking-wider">
             Target Host
