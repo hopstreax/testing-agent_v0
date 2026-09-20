@@ -21,9 +21,9 @@ export function AmbientBackground() {
       {/* Base Canvas Fill */}
       <div className="absolute inset-0 bg-[#08090b]" />
 
-      {/* Atmospheric Region 1: Upper-Right Mint Energy Node */}
+      {/* Atmospheric Region 1: Upper-Right Mint Energy Node (Extended inward to integrate with Pre-Flight panel) */}
       <div
-        className="absolute -top-[12%] -right-[8%] h-[580px] w-[580px] rounded-full opacity-[0.08] blur-[110px] animate-ambient-drift motion-reduce:animate-none"
+        className="absolute -top-[10%] right-[0%] h-[640px] w-[640px] rounded-full opacity-[0.095] blur-[120px] animate-ambient-drift motion-reduce:animate-none"
         style={{
           background: "radial-gradient(circle, #00e599 0%, transparent 70%)",
         }}
@@ -31,15 +31,15 @@ export function AmbientBackground() {
 
       {/* Atmospheric Region 2: Lower-Right / Bottom Ambient Glow */}
       <div
-        className="absolute -bottom-[12%] right-[15%] h-[500px] w-[500px] rounded-full opacity-[0.055] blur-[100px] animate-ambient-drift-reverse motion-reduce:animate-none"
+        className="absolute -bottom-[10%] right-[18%] h-[540px] w-[540px] rounded-full opacity-[0.065] blur-[110px] animate-ambient-drift-reverse motion-reduce:animate-none"
         style={{
           background: "radial-gradient(circle, #00e599 0%, transparent 70%)",
         }}
       />
 
-      {/* Atmospheric Region 3: Upper-Left / Header Ambient Aura */}
+      {/* Atmospheric Region 3: Upper-Left / Header Ambient Aura (Balanced temperature behind title & description) */}
       <div
-        className="absolute top-[8%] left-[20%] h-[420px] w-[420px] rounded-full opacity-[0.045] blur-[90px] motion-reduce:animate-none"
+        className="absolute top-[4%] left-[16%] h-[480px] w-[480px] rounded-full opacity-[0.06] blur-[105px] motion-reduce:animate-none"
         style={{
           background: "radial-gradient(circle, #00e599 0%, transparent 70%)",
         }}
