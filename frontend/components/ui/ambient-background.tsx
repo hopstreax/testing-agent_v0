@@ -5,40 +5,41 @@ import React from "react";
 /**
  * AmbientBackground provides the signature TraceKit developer-tool atmosphere:
  * - Ultra-deep base (#08090b)
- * - 3 soft, low-opacity mint (#00e599) atmospheric energy regions around the perimeter
- * - Center vignette ensuring content legibility and high contrast
- * - Subtle technical dot-grid texture
- * - Barely-perceptible, slow ambient drift with zero rapid movement or distraction
+ * - Restrained, low-opacity mint (#00e599) atmospheric energy regions around the perimeter
+ * - Technical dot-grid matrix texture matching TraceKit landing page fidelity
+ * - Barely-perceptible, ultra-slow ambient drift with zero rapid movement or distraction
  * - Fully respects prefers-reduced-motion
+ * - Positioned on z-0 inside an isolated stacking context, sitting above the base black canvas
+ *   but behind the z-10 interactive workspace
  */
 export function AmbientBackground() {
   return (
     <div
-      className="pointer-events-none fixed inset-0 -z-10 overflow-hidden select-none"
+      className="pointer-events-none fixed inset-0 z-0 overflow-hidden select-none"
       aria-hidden="true"
     >
-      {/* Base Dark Fill */}
+      {/* Base Canvas Fill */}
       <div className="absolute inset-0 bg-[#08090b]" />
 
-      {/* Atmospheric Region 1: Upper-Right Mint Energy */}
+      {/* Atmospheric Region 1: Upper-Right Mint Energy Node */}
       <div
-        className="absolute -top-[15%] -right-[10%] h-[600px] w-[600px] rounded-full opacity-[0.035] blur-[110px] animate-ambient-drift motion-reduce:animate-none"
+        className="absolute -top-[12%] -right-[8%] h-[580px] w-[580px] rounded-full opacity-[0.08] blur-[110px] animate-ambient-drift motion-reduce:animate-none"
         style={{
           background: "radial-gradient(circle, #00e599 0%, transparent 70%)",
         }}
       />
 
-      {/* Atmospheric Region 2: Lower-Left Soft Ambient Aura */}
+      {/* Atmospheric Region 2: Lower-Right / Bottom Ambient Glow */}
       <div
-        className="absolute -bottom-[15%] -left-[10%] h-[550px] w-[550px] rounded-full opacity-[0.03] blur-[100px] animate-ambient-drift-reverse motion-reduce:animate-none"
+        className="absolute -bottom-[12%] right-[15%] h-[500px] w-[500px] rounded-full opacity-[0.055] blur-[100px] animate-ambient-drift-reverse motion-reduce:animate-none"
         style={{
           background: "radial-gradient(circle, #00e599 0%, transparent 70%)",
         }}
       />
 
-      {/* Atmospheric Region 3: Top-Left Subtle Filament */}
+      {/* Atmospheric Region 3: Upper-Left / Header Ambient Aura */}
       <div
-        className="absolute top-[10%] left-[20%] h-[380px] w-[380px] rounded-full opacity-[0.015] blur-[90px] motion-reduce:animate-none"
+        className="absolute top-[8%] left-[20%] h-[420px] w-[420px] rounded-full opacity-[0.045] blur-[90px] motion-reduce:animate-none"
         style={{
           background: "radial-gradient(circle, #00e599 0%, transparent 70%)",
         }}
@@ -46,21 +47,12 @@ export function AmbientBackground() {
 
       {/* Technical Dot-Grid Matrix Texture */}
       <div
-        className="absolute inset-0 opacity-[0.022]"
+        className="absolute inset-0 opacity-[0.035]"
         style={{
           backgroundImage:
             "radial-gradient(#00e599 1px, transparent 1px), radial-gradient(#00e599 1px, #08090b 1px)",
-          backgroundSize: "32px 32px",
-          backgroundPosition: "0 0, 16px 16px",
-        }}
-      />
-
-      {/* Center Vignette: Keeps center stage completely dark and contrast-pure */}
-      <div
-        className="absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse at center, transparent 35%, rgba(8, 9, 11, 0.75) 100%)",
+          backgroundSize: "28px 28px",
+          backgroundPosition: "0 0, 14px 14px",
         }}
       />
     </div>

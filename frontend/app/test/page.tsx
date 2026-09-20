@@ -13,8 +13,8 @@ export default function NewTestPage() {
 
   return (
     <ProtectedRoute>
-      <div className="relative flex min-h-screen bg-[#08090b] text-[#f4f4f6]">
-        {/* Persistent Technical Ambient Lighting */}
+      <div className="relative isolate flex min-h-screen bg-[#08090b] text-[#f4f4f6]">
+        {/* Persistent Technical Ambient Lighting (Layer 0) */}
         <AmbientBackground />
 
         {/* Left Navigation Sidebar */}
@@ -23,8 +23,8 @@ export default function NewTestPage() {
           onClose={() => setIsSidebarOpen(false)}
         />
 
-        {/* Main Content Area */}
-        <div className="flex flex-1 flex-col min-w-0">
+        {/* Main Content Area (Layer 10: Renders above AmbientBackground) */}
+        <div className="relative z-10 flex flex-1 flex-col min-w-0">
           {/* Top Bar */}
           <TopBar onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)} />
 
