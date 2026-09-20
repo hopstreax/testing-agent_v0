@@ -95,33 +95,6 @@ body {
   animation: subtleRadar 3s ease-in-out infinite;
 }
 
-/* Ambient background drift keyframes */
-@keyframes ambientDrift {
-  0%, 100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(25px, 20px) scale(1.04);
-  }
-}
-
-@keyframes ambientDriftReverse {
-  0%, 100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(-20px, -15px) scale(0.96);
-  }
-}
-
-.animate-ambient-drift {
-  animation: ambientDrift 28s ease-in-out infinite;
-}
-
-.animate-ambient-drift-reverse {
-  animation: ambientDriftReverse 32s ease-in-out infinite;
-}
-
 /* TextEffect animation presets */
 @keyframes textEffectFade {
   from {
