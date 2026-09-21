@@ -7,11 +7,13 @@ import { TopBar } from "@/components/shell/top-bar";
 import { WorkspaceFooter } from "@/components/shell/workspace-footer";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { RunHeader } from "@/components/run/run-header";
+import { RunKpiStrip } from "@/components/run/run-kpi-strip";
 import { RunningCard } from "@/components/run/running-card";
 import { FailureDiagnosisCard } from "@/components/run/failure-diagnosis-card";
 import { AssertionsTable } from "@/components/run/assertions-table";
 import { StepsTrace } from "@/components/run/steps-trace";
 import { VisualEvidence } from "@/components/run/visual-evidence";
+import { BrowserDiagnostics } from "@/components/run/browser-diagnostics";
 import { LightboxModal } from "@/components/run/lightbox-modal";
 import { getRun, RunStatusResponse, ApiError } from "@/lib/api";
 import { Loader2, AlertCircle, ArrowLeft } from "lucide-react";
@@ -118,134 +120,168 @@ export default function RunDetailPage({ params }: PageProps) {
   return (
     <ProtectedRoute>
       <div className="flex min-h-screen bg-[#090a0c] text-[#f4f4f6]">
-      {/* Left Navigation Sidebar */}
-      <Sidebar
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
-      />
+        {/* Left Navigation Sidebar */}
+        <Sidebar
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
+        />
 
-      {/* Main Content Area */}
-      <div className="flex flex-1 flex-col min-w-0">
-        <TopBar onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)} />
+        {/* Main Content Area */}
+        <div className="flex flex-1 flex-col min-w-0">
+          <TopBar onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)} />
 
-        <main className="flex-1 overflow-y-auto px-4 py-8 sm:px-8 lg:px-12">
-          <div className="mx-auto max-w-4xl flex flex-col gap-6">
-            {/* Transient Connection Warning Banner */}
-            {connectionWarning && (
-              <div className="flex items-center gap-2 rounded-lg border border-amber-900/60 bg-amber-950/40 p-3 text-xs text-amber-300">
-                <AlertCircle className="h-4 w-4 shrink-0 text-amber-400" />
-                <span>{connectionWarning}</span>
-              </div>
-            )}
-
-            {/* Initial Loading State */}
-            {isLoading && (
-              <div className="flex flex-col items-center justify-center py-24 gap-3">
-                <Loader2 className="h-8 w-8 animate-spin text-emerald-400" />
-                <span className="font-mono text-xs text-zinc-400">
-                  Loading test run {runId}...
-                </span>
-              </div>
-            )}
-
-            {/* Initial Error State (e.g. 404 or backend down) */}
-            {initialError && !isLoading && (
-              <div className="rounded-xl border border-red-900/60 bg-red-950/30 p-8 text-center flex flex-col items-center gap-4">
-                <AlertCircle className="h-10 w-10 text-red-400" />
-                <div className="flex flex-col gap-1">
-                  <h2 className="text-base font-semibold text-white">
-                    Unable to load run
-                  </h2>
-                  <p className="text-xs text-zinc-400 font-mono">{initialError}</p>
+          <main
+            className="flex-1 overflow-y-auto px-4 py-8 sm:px-8 lg:px-12"
+            style={{
+              backgroundImage: "radial-gradient(#1f2428 1px, transparent 1px)",
+              backgroundSize: "28px 28px",
+            }}
+          >
+            <div className="mx-auto max-w-7xl flex flex-col gap-6">
+              {/* Transient Connection Warning Banner */}
+              {connectionWarning && (
+                <div className="flex items-center gap-2 rounded-lg border border-amber-900/60 bg-amber-950/40 p-3 text-xs text-amber-300 font-mono shadow-xs">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-amber-400 animate-pulse" />
+                  <span>{connectionWarning}</span>
                 </div>
-                <Link
-                  href="/test"
-                  className="inline-flex items-center gap-1.5 rounded-md bg-zinc-800 hover:bg-zinc-700 px-3.5 py-2 text-xs font-medium text-white transition-colors"
-                >
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                  <span>Return to New Test</span>
-                </Link>
-              </div>
-            )}
+              )}
 
-            {/* Main Run Content */}
-            {run && (
-              <>
-                {/* Run Header with Status & Metrics */}
-                <RunHeader run={run} elapsedMs={elapsedMs} />
-
-                {/* 1. If currently Running */}
-                {run.status === "running" && (
-                  <RunningCard run={run} elapsedMs={elapsedMs} />
-                )}
-
-                {/* 2. If Failed: Deterministic Diagnosis */}
-                {run.status === "failed" && run.result?.diagnosis && (
-                  <FailureDiagnosisCard
-                    diagnosis={run.result.diagnosis}
-                    rawMessage={run.result.message}
-                  />
-                )}
-
-                {/* 3. If Fatal Error */}
-                {run.status === "error" && (
-                  <div className="rounded-xl border border-amber-900/60 bg-amber-950/25 p-5 flex flex-col gap-2">
-                    <span className="font-semibold text-amber-300 text-xs uppercase tracking-wider">
-                      Execution Error
+              {/* Initial Loading State */}
+              {isLoading && (
+                <div className="rounded-lg border border-[#1b2026] bg-[#0d1013] p-16 text-center flex flex-col items-center justify-center gap-3 shadow-xs">
+                  <Loader2 className="h-8 w-8 animate-spin text-emerald-400" />
+                  <div className="flex flex-col gap-1">
+                    <span className="font-mono text-xs text-white font-medium">
+                      Synchronizing telemetry stream...
                     </span>
-                    <p className="text-xs text-zinc-300 font-mono leading-relaxed">
-                      {run.error || "An unhandled exception occurred during execution."}
-                    </p>
+                    <span className="font-mono text-[10px] text-zinc-500">
+                      Querying run record {runId}
+                    </span>
                   </div>
-                )}
+                </div>
+              )}
 
-                {/* 4. Terminal Result Sections */}
-                {run.result && (
-                  <>
-                    {/* Deterministic Assertions Table */}
-                    <AssertionsTable
-                      assertions={run.result.assertions}
-                      runId={run.run_id}
-                      onSelectScreenshot={(url, title) =>
-                        setActiveScreenshot({ url, title })
-                      }
+              {/* Initial Error State (e.g. 404 or backend down) */}
+              {initialError && !isLoading && (
+                <div className="rounded-lg border border-red-900/60 bg-[#0d1013] p-10 text-center flex flex-col items-center gap-4 shadow-xs">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-950/60 border border-red-800/50 text-red-400">
+                    <AlertCircle className="h-6 w-6" />
+                  </div>
+                  <div className="flex flex-col gap-1 max-w-md">
+                    <h2 className="text-base font-semibold text-white">
+                      Unable to load execution record
+                    </h2>
+                    <p className="text-xs text-zinc-400 font-mono">{initialError}</p>
+                  </div>
+                  <div className="flex items-center gap-2.5 pt-2">
+                    <Link
+                      href="/runs"
+                      className="inline-flex items-center gap-1.5 rounded-md border border-[#22272b] bg-[#121518] px-3.5 py-2 text-xs font-medium text-zinc-300 hover:border-zinc-700 hover:bg-[#161a1e] hover:text-white transition-colors"
+                    >
+                      <ArrowLeft className="h-3.5 w-3.5" />
+                      <span>Back to Runs</span>
+                    </Link>
+                    <Link
+                      href="/test"
+                      className="inline-flex items-center gap-1.5 rounded-md bg-emerald-400 hover:bg-emerald-300 px-3.5 py-2 text-xs font-bold text-zinc-950 transition-colors shadow-xs"
+                    >
+                      <span>New Test</span>
+                    </Link>
+                  </div>
+                </div>
+              )}
+
+              {/* Main Run Content */}
+              {run && (
+                <>
+                  {/* 1. Run Header with Objective, Status, & Actions */}
+                  <RunHeader run={run} elapsedMs={elapsedMs} />
+
+                  {/* 2. Compact 4-Card Telemetry KPI Strip */}
+                  <RunKpiStrip run={run} elapsedMs={elapsedMs} />
+
+                  {/* 3. Running State: First-Class Live Telemetry Centerpiece */}
+                  {run.status === "running" && (
+                    <RunningCard
+                      run={run}
+                      elapsedMs={elapsedMs}
+                      connectionWarning={connectionWarning}
                     />
+                  )}
 
-                    {/* Execution Steps Trace */}
-                    <StepsTrace
-                      steps={run.result.steps}
-                      runId={run.run_id}
-                      onSelectScreenshot={(url, title) =>
-                        setActiveScreenshot({ url, title })
-                      }
+                  {/* 4. Failure Diagnosis Panel (if failed) */}
+                  {run.status === "failed" && run.result?.diagnosis && (
+                    <FailureDiagnosisCard
+                      diagnosis={run.result.diagnosis}
+                      rawMessage={run.result.message}
                     />
+                  )}
 
-                    {/* Visual Evidence Gallery */}
-                    <VisualEvidence
-                      screenshots={run.result.screenshots}
-                      runId={run.run_id}
-                      onSelectScreenshot={(url, title) =>
-                        setActiveScreenshot({ url, title })
-                      }
-                    />
-                  </>
-                )}
-              </>
-            )}
-          </div>
-        </main>
+                  {/* 5. Fatal Execution Error Box */}
+                  {run.status === "error" && (
+                    <div className="rounded-lg border border-amber-900/60 bg-[#0e1012] p-5 flex flex-col gap-2 shadow-xs">
+                      <div className="flex items-center gap-2 text-amber-300 font-mono text-xs uppercase font-bold tracking-wider">
+                        <AlertCircle className="h-4 w-4 text-amber-400" />
+                        <span>Execution Error</span>
+                      </div>
+                      <p className="text-xs text-zinc-300 font-mono leading-relaxed bg-[#090b0d] p-3 rounded border border-[#1f2428] overflow-x-auto">
+                        {run.error || "An unhandled exception occurred during autonomous test execution."}
+                      </p>
+                    </div>
+                  )}
 
-        {/* Compact Workspace Footer */}
-        <WorkspaceFooter />
+                  {/* 6. Terminal Observability Sections */}
+                  {run.result && (
+                    <>
+                      {/* Deterministic Assertions Table */}
+                      <AssertionsTable
+                        assertions={run.result.assertions}
+                        runId={run.run_id}
+                        onSelectScreenshot={(url, title) =>
+                          setActiveScreenshot({ url, title })
+                        }
+                      />
+
+                      {/* Chronological Execution Steps Trace */}
+                      <StepsTrace
+                        steps={run.result.steps}
+                        runId={run.run_id}
+                        onSelectScreenshot={(url, title) =>
+                          setActiveScreenshot({ url, title })
+                        }
+                      />
+
+                      {/* Real Browser Runtime Diagnostics (Console / Network) */}
+                      {run.result.diagnostics && (
+                        <BrowserDiagnostics diagnostics={run.result.diagnostics} />
+                      )}
+
+                      {/* Visual Evidence Gallery */}
+                      <VisualEvidence
+                        screenshots={run.result.screenshots}
+                        runId={run.run_id}
+                        onSelectScreenshot={(url, title) =>
+                          setActiveScreenshot({ url, title })
+                        }
+                      />
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          </main>
+
+          {/* Compact Workspace Footer */}
+          <WorkspaceFooter />
+        </div>
+
+        {/* Full-resolution Screenshot Lightbox Modal */}
+        <LightboxModal
+          imageSrc={activeScreenshot?.url || null}
+          imageTitle={activeScreenshot?.title}
+          onClose={() => setActiveScreenshot(null)}
+        />
       </div>
-
-      {/* Full-resolution Screenshot Lightbox Modal */}
-      <LightboxModal
-        imageSrc={activeScreenshot?.url || null}
-        imageTitle={activeScreenshot?.title}
-        onClose={() => setActiveScreenshot(null)}
-      />
-    </div>
     </ProtectedRoute>
   );
 }
