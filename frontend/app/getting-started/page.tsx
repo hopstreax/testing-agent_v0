@@ -1,4 +1,6 @@
-import React from "react";
+"use client";
+
+import React, { useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -7,10 +9,16 @@ import {
   Play,
   ShieldCheck,
   FileSearch,
+  Terminal,
 } from "lucide-react";
-import { LandingNav } from "@/components/landing/landing-nav";
-import { LandingFooter } from "@/components/landing/landing-footer";
+import { Sidebar } from "@/components/shell/sidebar";
+import { TopBar } from "@/components/shell/top-bar";
+import { WorkspaceFooter } from "@/components/shell/workspace-footer";
 import { Reveal } from "@/components/landing/reveal";
+import { GettingStartedHeader } from "@/components/getting-started/getting-started-header";
+import { PipelineOverview } from "@/components/getting-started/pipeline-overview";
+import { BlueprintLaunchCards } from "@/components/getting-started/blueprint-launch-cards";
+import { ArchitectureInspector } from "@/components/getting-started/architecture-inspector";
 
 const GUIDE_STEPS = [
   {
@@ -73,129 +81,208 @@ const GUIDE_STEPS = [
   },
 ];
 
-export const metadata = {
-  title: "Getting Started — TraceKit",
-  description: "Learn how TraceKit turns plain-language testing goals into browser actions, deterministic verification, and inspectable evidence.",
-};
-
 export default function GettingStartedPage() {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
   return (
-    <div className="min-h-screen bg-[#08090b] text-[#f4f4f6] flex flex-col font-sans selection:bg-[#00e599]/30 selection:text-white">
-      <LandingNav />
+    <div className="flex min-h-screen bg-[#090a0c] text-[#f4f4f6]">
+      {/* Left Navigation Sidebar */}
+      <Sidebar
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+      />
 
-      <main className="flex-1">
-        {/* Header Section */}
-        <section className="relative overflow-hidden pt-12 pb-10 sm:pt-16 sm:pb-14 border-b border-[#1f2428]">
-          <div
-            className="pointer-events-none absolute inset-0 opacity-[0.035]"
-            style={{
-              backgroundImage:
-                "radial-gradient(#00e599 1px, transparent 1px), radial-gradient(#00e599 1px, #08090b 1px)",
-              backgroundSize: "32px 32px",
-              backgroundPosition: "0 0, 16px 16px",
-            }}
-            aria-hidden="true"
-          />
+      {/* Main Content Area */}
+      <div className="flex flex-1 flex-col min-w-0">
+        {/* Top Bar */}
+        <TopBar onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)} />
 
-          <div className="relative mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#00e599]/30 bg-[#00e599]/10 px-3 py-1 text-[11px] font-mono font-medium tracking-wider text-[#00e599] uppercase mb-4">
-              Documentation &amp; Guide
-            </div>
+        {/* Getting Started Main Workspace */}
+        <main
+          className="flex-1 overflow-y-auto px-4 py-8 sm:px-8 lg:px-12"
+          style={{
+            backgroundImage: "radial-gradient(#1f2428 1px, transparent 1px)",
+            backgroundSize: "28px 28px",
+          }}
+        >
+          <div className="mx-auto max-w-7xl flex flex-col gap-8 sm:gap-9">
+            {/* 1. Developer Onboarding Console Header */}
+            <GettingStartedHeader />
 
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white">
-              How to use TraceKit
-            </h1>
+            {/* 2. Four-Stage Horizontal Execution Pipeline */}
+            <PipelineOverview />
 
-            <p className="mt-4 text-sm sm:text-base leading-relaxed text-zinc-400 max-w-2xl">
-              TraceKit replaces brittle selector maintenance with autonomous browser
-              reasoning and deterministic verification. Follow this 5-step workflow to
-              launch, inspect, and evaluate tests.
-            </p>
-          </div>
-        </section>
+            {/* 3. First Run / Execution Lifecycle Primer */}
+            <section aria-labelledby="first-run-title" className="flex flex-col gap-3">
+              <div className="flex items-center gap-2">
+                <h2
+                  id="first-run-title"
+                  className="font-mono text-[11px] font-semibold uppercase tracking-wider text-zinc-400"
+                >
+                  First Run
+                </h2>
+                <span className="font-mono text-[10px] text-zinc-600 select-none" aria-hidden="true">
+                  /
+                </span>
+                <span className="font-mono text-[10px] text-zinc-500">
+                  DEVELOPER ONBOARDING FLOW
+                </span>
+              </div>
 
-        {/* 5-Step Workflow Cards */}
-        <section className="py-12 sm:py-16">
-          <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 space-y-6">
-            {GUIDE_STEPS.map((step, idx) => {
-              const Icon = step.icon;
-              return (
-                <Reveal key={step.number} delayMs={idx * 60}>
-                  <div className="rounded-xl border border-[#1f2428] bg-[#0d1013] p-5 sm:p-7 hover:border-zinc-700 transition-colors">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1b1f23] pb-4 mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#00e599]/40 bg-[#00e599]/10 font-mono text-xs font-bold text-[#00e599]">
-                          {step.number}
-                        </div>
-                        <h2 className="text-lg sm:text-xl font-bold text-white tracking-tight">
-                          {step.title}
-                        </h2>
-                      </div>
-
-                      <div className="flex items-center gap-1.5 text-xs text-zinc-400 font-mono">
-                        <Icon className="h-3.5 w-3.5 text-[#00e599]" />
-                        <span>Phase {step.number}</span>
-                      </div>
+              <div className="rounded-lg border border-[#1b2026] bg-[#0d1013] p-4 sm:p-5 shadow-xs">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="flex flex-col gap-1.5 border-b md:border-b-0 md:border-r border-[#1b2026] pb-3 md:pb-0 md:pr-4">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[10px] font-bold text-emerald-400 bg-emerald-950/80 border border-emerald-800/60 px-1.5 py-0.5 rounded">
+                        STEP 1
+                      </span>
+                      <span className="text-xs font-semibold text-white">
+                        Choose Goal &amp; Target
+                      </span>
                     </div>
-
-                    <p className="text-xs sm:text-sm font-medium text-zinc-300 mb-3">
-                      {step.summary}
+                    <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">
+                      Provide a target URL and plain-English objective. Pick an action blueprint below or author a custom flow in Test Studio.
                     </p>
-
-                    <ul className="space-y-2 text-xs text-zinc-400 leading-relaxed">
-                      {step.details.map((point, pIdx) => (
-                        <li key={pIdx} className="flex items-start gap-2">
-                          <span className="mt-1.5 h-1 w-1 rounded-full bg-[#00e599] shrink-0" />
-                          <span>{point}</span>
-                        </li>
-                      ))}
-                    </ul>
                   </div>
-                </Reveal>
-              );
-            })}
 
-            {/* Bottom CTA Box */}
-            <Reveal delayMs={100}>
-              <div className="rounded-xl border border-[#00e599]/30 bg-[#00e599]/[0.03] p-6 sm:p-8 text-center mt-12 flex flex-col items-center">
-                <h3 className="text-xl sm:text-2xl font-bold text-white">
-                  Ready to run your first test?
-                </h3>
-                <p className="mt-2 text-xs sm:text-sm text-zinc-400 max-w-md">
-                  Launch an autonomous Chromium session and verify your application in seconds.
-                </p>
+                  <div className="flex flex-col gap-1.5 border-b md:border-b-0 md:border-r border-[#1b2026] pb-3 md:pb-0 md:pr-4">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[10px] font-bold text-sky-400 bg-sky-950/80 border border-sky-800/60 px-1.5 py-0.5 rounded">
+                        STEP 2
+                      </span>
+                      <span className="text-xs font-semibold text-white">
+                        Autonomous Execution
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">
+                      Chromium runs in headed or headless mode, explores the live DOM tree, dispatches typed interactions, and evaluates deterministic checks.
+                    </p>
+                  </div>
 
-                <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                  {/*
-                    M8 Specification:
-                    - In M8, this CTA will follow auth-aware behavior:
-                        logged out -> /login
-                        logged in  -> /test
-                    - For current pre-M8 milestone, routes directly to existing New Test page (/test).
-                  */}
-                  <Link
-                    href="/test"
-                    id="getting-started-launch-btn"
-                    className="inline-flex items-center gap-2 rounded-lg bg-[#00e599] hover:bg-[#00f5a0] px-5 py-2.5 text-xs sm:text-sm font-semibold text-[#08090b] transition-all shadow-md hover:shadow-[#00e599]/20 cursor-pointer"
-                  >
-                    <span>Run Your First Test</span>
-                    <ArrowRight className="h-4 w-4 stroke-[2.5]" />
-                  </Link>
-
-                  <Link
-                    href="/runs"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#22272b] bg-[#121518] hover:border-zinc-700 px-4 py-2.5 text-xs sm:text-sm font-medium text-zinc-300 hover:text-white transition-colors"
-                  >
-                    <span>View Dashboard</span>
-                  </Link>
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-[10px] font-bold text-amber-400 bg-amber-950/80 border border-amber-800/60 px-1.5 py-0.5 rounded">
+                        STEP 3
+                      </span>
+                      <span className="text-xs font-semibold text-white">
+                        Inspect Evidence
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">
+                      Open Run Details to review chronological step screenshots, CDP console diagnostics, and automated root-cause failure classifications.
+                    </p>
+                  </div>
                 </div>
               </div>
-            </Reveal>
-          </div>
-        </section>
-      </main>
+            </section>
 
-      <LandingFooter />
+            {/* 4. Quick Launch Blueprints */}
+            <BlueprintLaunchCards />
+
+            {/* 5. What TraceKit Trusts (Architecture Inspector) */}
+            <ArchitectureInspector />
+
+            {/* 6. Detailed Step-by-Step Workflow Walkthrough */}
+            <section aria-labelledby="workflow-walkthrough-title" className="flex flex-col gap-4">
+              <div className="flex items-center gap-2 border-t border-[#1b2026] pt-6">
+                <h2
+                  id="workflow-walkthrough-title"
+                  className="font-mono text-[11px] font-semibold uppercase tracking-wider text-zinc-400"
+                >
+                  Workflow Deep-Dive
+                </h2>
+                <span className="font-mono text-[10px] text-zinc-600 select-none" aria-hidden="true">
+                  /
+                </span>
+                <span className="font-mono text-[10px] text-zinc-500">
+                  5-PHASE RUNBOOK
+                </span>
+              </div>
+
+              <div className="space-y-3.5">
+                {GUIDE_STEPS.map((step, idx) => {
+                  const Icon = step.icon;
+                  return (
+                    <Reveal key={step.number} delayMs={idx * 50}>
+                      <div className="rounded-lg border border-[#1b2026] bg-[#0d1013] p-4 sm:p-5 hover:border-[#2a323c] transition-colors">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1b1f23] pb-3 mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-6 w-6 items-center justify-center rounded bg-emerald-950/80 border border-emerald-800/60 font-mono text-xs font-bold text-emerald-400">
+                              {step.number}
+                            </div>
+                            <h3 className="text-sm sm:text-base font-bold text-white tracking-tight">
+                              {step.title}
+                            </h3>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 text-xs text-zinc-400 font-mono">
+                            <Icon className="h-3.5 w-3.5 text-emerald-400" aria-hidden="true" />
+                            <span>Phase {step.number}</span>
+                          </div>
+                        </div>
+
+                        <p className="text-xs font-medium text-zinc-300 mb-2.5">
+                          {step.summary}
+                        </p>
+
+                        <ul className="space-y-1 text-xs text-zinc-400 leading-relaxed">
+                          {step.details.map((point, pIdx) => (
+                            <li key={pIdx} className="flex items-start gap-2">
+                              <span
+                                className="mt-1.5 h-1 w-1 rounded-full bg-emerald-400 shrink-0"
+                                aria-hidden="true"
+                              />
+                              <span>{point}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </Reveal>
+                  );
+                })}
+
+                {/* 7. Final Action Console CTA */}
+                <Reveal delayMs={100}>
+                  <div className="rounded-lg border border-[#1b2026] bg-[#0d1013] p-6 sm:p-8 text-center mt-6 flex flex-col items-center">
+                    <div className="inline-flex items-center gap-1.5 rounded bg-[#121518] border border-[#22272b] px-2 py-0.5 font-mono text-[10px] font-semibold text-zinc-300 mb-3">
+                      <Terminal className="h-3 w-3 text-emerald-400" aria-hidden="true" />
+                      <span>START TESTING</span>
+                    </div>
+
+                    <h3 className="text-lg sm:text-xl font-bold text-white font-sans">
+                      Ready to execute your first autonomous test?
+                    </h3>
+                    <p className="mt-1.5 text-xs sm:text-sm text-zinc-400 max-w-md font-sans">
+                      Launch an autonomous Chromium session and verify your application state in seconds.
+                    </p>
+
+                    <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+                      <Link
+                        href="/test"
+                        id="getting-started-bottom-launch-btn"
+                        className="inline-flex items-center gap-2 rounded-md bg-emerald-400 hover:bg-emerald-300 px-4 py-2 text-xs sm:text-sm font-bold text-zinc-950 transition-colors shadow-xs active:scale-[0.98] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#090a0c]"
+                      >
+                        <span>Open Test Studio</span>
+                        <ArrowRight className="h-3.5 w-3.5 stroke-[2.5]" aria-hidden="true" />
+                      </Link>
+
+                      <Link
+                        href="/runs"
+                        className="inline-flex items-center gap-1.5 rounded-md border border-[#22272b] bg-[#121518] hover:border-zinc-700 hover:bg-[#161a1e] px-3.5 py-2 text-xs sm:text-sm font-medium text-zinc-300 hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 focus-visible:ring-offset-2 focus-visible:ring-offset-[#090a0c]"
+                      >
+                        <span>View Execution Runs</span>
+                      </Link>
+                    </div>
+                  </div>
+                </Reveal>
+              </div>
+            </section>
+          </div>
+        </main>
+
+        {/* Compact Workspace Footer */}
+        <WorkspaceFooter />
+      </div>
     </div>
   );
 }
